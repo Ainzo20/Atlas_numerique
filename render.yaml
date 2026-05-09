@@ -1,0 +1,23 @@
+# render.yaml
+# -----------
+# Configuration du déploiement sur Render.com
+# Ce fichier permet à Render de configurer automatiquement
+# le service à partir du repo GitHub.
+#
+# Les variables d'environnement marquées sync: false
+# doivent être renseignées manuellement dans le dashboard
+# Render — elles ne sont jamais stockées dans le repo.
+
+services:
+  - type: web
+    name: atlas-cameroun
+    runtime: python
+    region: frankfurt          # region la plus proche de l'Afrique centrale
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:10000
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB
+        sync: false
