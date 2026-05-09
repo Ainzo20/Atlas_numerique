@@ -1,16 +1,276 @@
 <!DOCTYPE html>
-<html>
-<title></title>
-
+<html lang="fr">
 <head>
-    <title>Atlas Numérique</title>
-    <link rel="stylesheet" href="/static/style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Atlas Numérique du Cameroun</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
-
 <body>
-    <h1>Bienvenue sur l'Atlas Numérique</h1>
-    <p>Importez les donnees csv Kobocollect ici!</p>
-    <button>Importer</button>
-</body>
 
+  <!-- ═══════════════════════════════════════════
+       SIDEBAR
+  ═══════════════════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">🗺</div>
+      <div>
+        <div class="brand-title">Atlas Numérique</div>
+        <div class="brand-sub">du Cameroun</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="nav-item active" data-page="dashboard" onclick="naviguer('dashboard')">
+        <span class="nav-icon">◈</span> Tableau de bord
+      </a>
+      <a class="nav-item" data-page="import" onclick="naviguer('import')">
+        <span class="nav-icon">⬆</span> Importer CSV
+      </a>
+      <a class="nav-item" data-page="regions" onclick="naviguer('regions')">
+        <span class="nav-icon">◉</span> Régions
+      </a>
+      <a class="nav-item" data-page="communes" onclick="naviguer('communes')">
+        <span class="nav-icon">◎</span> Communes
+      </a>
+      <a class="nav-item" data-page="export" onclick="naviguer('export')">
+        <span class="nav-icon">⬇</span> Exporter
+      </a>
+    </nav>
+
+    <div class="sidebar-status" id="statusBar">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Vérification...</span>
+    </div>
+  </aside>
+
+  <!-- ═══════════════════════════════════════════
+       CONTENU PRINCIPAL
+  ═══════════════════════════════════════════ -->
+  <main class="main">
+
+    <!-- ── PAGE : TABLEAU DE BORD ── -->
+    <section class="page active" id="page-dashboard">
+      <div class="page-header">
+        <h1 class="page-title">Tableau de bord</h1>
+        <p class="page-sub">Vue d'ensemble des données importées</p>
+      </div>
+
+      <!-- Stats globales -->
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card loading">
+          <div class="stat-label">Régions</div>
+          <div class="stat-value" id="stat-regions">—</div>
+        </div>
+        <div class="stat-card loading">
+          <div class="stat-label">Départements</div>
+          <div class="stat-value" id="stat-departements">—</div>
+        </div>
+        <div class="stat-card loading">
+          <div class="stat-label">Arrondissements</div>
+          <div class="stat-value" id="stat-arrondissements">—</div>
+        </div>
+        <div class="stat-card loading">
+          <div class="stat-label">Communes</div>
+          <div class="stat-value" id="stat-communes">—</div>
+        </div>
+        <div class="stat-card loading">
+          <div class="stat-label">Villages & Quartiers</div>
+          <div class="stat-value" id="stat-villages">—</div>
+        </div>
+        <div class="stat-card loading">
+          <div class="stat-label">Lieux répertoriés</div>
+          <div class="stat-value" id="stat-lieux">—</div>
+        </div>
+        <div class="stat-card loading">
+          <div class="stat-label">Chefferies</div>
+          <div class="stat-value" id="stat-chefferies">—</div>
+        </div>
+        <div class="stat-card loading">
+          <div class="stat-label">Marchés</div>
+          <div class="stat-value" id="stat-marches">—</div>
+        </div>
+        <div class="stat-card loading">
+          <div class="stat-label">Ethnies</div>
+          <div class="stat-value" id="stat-ethnies">—</div>
+        </div>
+        <div class="stat-card loading">
+          <div class="stat-label">Coopératives</div>
+          <div class="stat-value" id="stat-cooperatives">—</div>
+        </div>
+        <div class="stat-card loading">
+          <div class="stat-label">Exercices</div>
+          <div class="stat-value" id="stat-exercices">—</div>
+        </div>
+      </div>
+
+      <!-- Dernières communes -->
+      <div class="section-block">
+        <div class="section-block-header">
+          <h2 class="section-title">Communes enregistrées</h2>
+          <button class="btn-ghost" onclick="naviguer('communes')">Voir tout →</button>
+        </div>
+        <div id="dashboardCommunes" class="communes-preview"></div>
+      </div>
+    </section>
+
+    <!-- ── PAGE : IMPORT ── -->
+    <section class="page" id="page-import">
+      <div class="page-header">
+        <h1 class="page-title">Importer un fichier CSV</h1>
+        <p class="page-sub">Fichier exporté depuis KoboCollect</p>
+      </div>
+
+      <div class="import-container">
+        <!-- Zone de drop -->
+        <div class="drop-zone" id="dropZone"
+             ondragover="event.preventDefault(); this.classList.add('drag-over')"
+             ondragleave="this.classList.remove('drag-over')"
+             ondrop="handleDrop(event)">
+          <div class="drop-icon">📂</div>
+          <div class="drop-title">Glisser le fichier CSV ici</div>
+          <div class="drop-sub">ou</div>
+          <label class="btn-primary" for="csvInput">Parcourir</label>
+          <input type="file" id="csvInput" accept=".csv"
+                 style="display:none" onchange="handleFileSelect(event)" />
+          <div class="drop-hint">Format attendu · Séparateur ; · Encodage UTF-8</div>
+        </div>
+
+        <!-- Fichier sélectionné -->
+        <div class="file-selected" id="fileSelected" style="display:none">
+          <div class="file-info">
+            <span class="file-icon">📄</span>
+            <div>
+              <div class="file-name" id="fileName"></div>
+              <div class="file-size" id="fileSize"></div>
+            </div>
+          </div>
+          <div class="file-actions">
+            <button class="btn-danger-ghost" onclick="annulerFichier()">Annuler</button>
+            <button class="btn-primary" onclick="lancerImport()">Lancer l'import</button>
+          </div>
+        </div>
+
+        <!-- Progression -->
+        <div class="import-progress" id="importProgress" style="display:none">
+          <div class="progress-spinner"></div>
+          <div class="progress-text">Import en cours...</div>
+        </div>
+
+        <!-- Rapport -->
+        <div class="import-rapport" id="importRapport" style="display:none"></div>
+      </div>
+
+      <!-- Rappel conventions -->
+      <div class="section-block" style="margin-top: 2rem;">
+        <h2 class="section-title">Conventions du fichier</h2>
+        <div class="conventions-grid">
+          <div class="convention-item">
+            <div class="convention-symbol">;</div>
+            <div class="convention-desc">Séparateur de colonnes</div>
+          </div>
+          <div class="convention-item">
+            <div class="convention-symbol">|</div>
+            <div class="convention-desc">Séparateur d'entités</div>
+          </div>
+          <div class="convention-item">
+            <div class="convention-symbol">::</div>
+            <div class="convention-desc">Séparateur d'attributs</div>
+          </div>
+          <div class="convention-item">
+            <div class="convention-symbol">,</div>
+            <div class="convention-desc">Valeurs multiples</div>
+          </div>
+          <div class="convention-item">
+            <div class="convention-symbol">V::</div>
+            <div class="convention-desc">Préfixe Village</div>
+          </div>
+          <div class="convention-item">
+            <div class="convention-symbol">Q::</div>
+            <div class="convention-desc">Préfixe Quartier</div>
+          </div>
+          <div class="convention-item">
+            <div class="convention-symbol">RAS</div>
+            <div class="convention-desc">Valeur manquante</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── PAGE : REGIONS ── -->
+    <section class="page" id="page-regions">
+      <div class="page-header">
+        <h1 class="page-title">Régions</h1>
+        <p class="page-sub">Hiérarchie administrative du Cameroun</p>
+      </div>
+      <div id="regionsContent" class="regions-grid"></div>
+    </section>
+
+    <!-- ── PAGE : COMMUNES ── -->
+    <section class="page" id="page-communes">
+      <div class="page-header">
+        <h1 class="page-title">Communes</h1>
+        <p class="page-sub">Toutes les communes enregistrées</p>
+      </div>
+
+      <!-- Filtres -->
+      <div class="filters-bar">
+        <input class="filter-input" type="text" id="filtreRegion"
+               placeholder="Filtrer par région..." oninput="filtrerCommunes()" />
+        <input class="filter-input" type="text" id="filtreDept"
+               placeholder="Filtrer par département..." oninput="filtrerCommunes()" />
+        <button class="btn-ghost" onclick="reinitialiserFiltres()">Réinitialiser</button>
+      </div>
+
+      <div id="communesContent" class="communes-table-container"></div>
+    </section>
+
+    <!-- ── PAGE : EXPORT ── -->
+    <section class="page" id="page-export">
+      <div class="page-header">
+        <h1 class="page-title">Exporter les données</h1>
+        <p class="page-sub">Télécharger les données en CSV ou Excel</p>
+      </div>
+
+      <div class="export-container">
+        <div class="export-card" onclick="exporter('csv')">
+          <div class="export-icon">📋</div>
+          <div class="export-title">Export CSV</div>
+          <div class="export-desc">Fichier texte séparé par point-virgule · UTF-8</div>
+          <div class="btn-primary export-btn">Télécharger CSV</div>
+        </div>
+        <div class="export-card" onclick="exporter('excel')">
+          <div class="export-icon">📊</div>
+          <div class="export-title">Export Excel</div>
+          <div class="export-desc">Fichier .xlsx compatible Microsoft Excel</div>
+          <div class="btn-primary export-btn">Télécharger Excel</div>
+        </div>
+      </div>
+
+      <div class="section-block" style="margin-top: 2rem;">
+        <h2 class="section-title">Filtrer l'export</h2>
+        <div class="filters-bar">
+          <input class="filter-input" type="text" id="exportRegion"
+                 placeholder="Région (laisser vide = tout exporter)" />
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══════════════════════════════════════════
+       MODAL DETAIL COMMUNE
+  ═══════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modalOverlay" onclick="fermerModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+      <button class="modal-close" onclick="fermerModal()">✕</button>
+      <div class="modal-content" id="modalContent"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
 </html>

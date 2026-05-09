@@ -242,6 +242,51 @@ def parser_contact(cellule: str) -> dict:
         "code_postal": code_postal,
     }
 
+def parser_contact_ressource(cellule: str) -> dict:
+    """
+    Parse le champ contact de la personne ressource.
+    Format : nom::role::telephone::mail::code_postal
+
+    Chaque partie peut contenir plusieurs valeurs separees par virgule.
+    RAS si un champ est inconnu.
+
+    Exemple :
+        "Lola Mbarga::Adjointe du maire::+237 699 001 123::lola@cm.gov::237001"
+        → {
+            "nom":       "Lola Mbarga",
+            "role":      "Adjointe du maire",
+            "telephones": ["+237 699 001 123"],
+            "mails":      ["lola@cm.gov"],
+            "code_postal": "237001"
+          }
+
+    Args:
+        cellule (str): Contenu brut du champ personne ressource.
+
+    Returns:
+        dict: Personne ressource structuree.
+    """
+    # On decoupe en 5 parties fixes :
+    # nom :: role :: telephone :: mail :: code_postal
+    parties = cellule.split(SEP_ATTRIBUTS)
+
+    # On s'assure d'avoir exactement 5 parties
+    while len(parties) < 5:
+        parties.append(VALEUR_ABSENTE)
+
+    nom        = nettoyer_valeur(parties[0])
+    role       = nettoyer_valeur(parties[1])
+    telephones = eclater_valeurs_multiples(parties[2])
+    mails      = eclater_valeurs_multiples(parties[3])
+    code_postal = nettoyer_valeur(parties[4])
+
+    return {
+        "nom":        nom,
+        "role":       role,
+        "telephones": telephones,
+        "mails":      mails,
+        "code_postal": code_postal,
+    }
 
 def parser_villages_quartiers(
     cellule: str,
@@ -603,8 +648,8 @@ def _parser_ligne(ligne: pd.Series, numero_ligne: int) -> dict:
     contact_mairie = parser_contact(
         lire_cellule(ligne, "Contact de la mairie (telephone|mail|code_postal)")
     )
-    contact_ressource = parser_contact(
-        lire_cellule(ligne, "Contact de la personne ressource (telephone|mail|code_postal)")
+    contact_ressource = parser_contact_ressource(
+        lire_cellule(ligne, "Contact de la personne ressource (nom::role::telephone|mail|code_postal)")
     )
 
     # ── Coordonnees GPS de la commune ───────────────────────────

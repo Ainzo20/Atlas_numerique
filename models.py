@@ -99,11 +99,12 @@ def make_commune(
     """
     Construit un document Commune.
 
-    Args:
+       Args:
         nom (str): Nom de la commune.
         id_arrondissement (str): Identifiant MongoDB de l'arrondissement parent.
         contact_mairie (dict): Contact mairie {telephones, mails, code_postal}.
-        contact_personne_ressource (dict): Contact personne ressource.
+        contact_personne_ressource (dict): Personne ressource
+            {nom, role, telephones, mails, code_postal}.
         coordonnees (dict): GPS {latitude, longitude, altitude, precision}.
         langues_locales (list[str]): Liste des langues locales.
         delegations_ministeres (list[str]): Liste des delegations.
