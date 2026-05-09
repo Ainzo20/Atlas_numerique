@@ -589,7 +589,213 @@ def detail_commune(id_commune: str):
         "exercices":    fetch_sous_docs(Collections.EXERCICES,     id_commune),
     }
 
+# ════════════════════════════════════════════════════════════════
+# ROUTES SOUS-DOCUMENTS
+# Permettent de visualiser chaque collection independamment
+# avec filtres par commune et/ou type.
+# ════════════════════════════════════════════════════════════════
 
+@app.get("/villages")
+def lister_villages(
+    id_commune: str = Query(default=None, description="Filtrer par ID commune"),
+):
+    """
+    Retourne tous les villages et quartiers.
+    Filtre optionnel par commune.
+
+    Args:
+        id_commune (str | None): ID MongoDB de la commune.
+
+    Returns:
+        dict: {total, villages}
+    """
+    filtre = {}
+    if id_commune:
+        filtre["id_commune"] = id_commune
+
+    villages = list(get_collection(Collections.VILLAGES).find(filtre))
+    for v in villages:
+        v["_id"] = str(v["_id"])
+
+    return {"total": len(villages), "villages": villages}
+
+
+@app.get("/chefferies")
+def lister_chefferies(
+    id_commune: str = Query(default=None, description="Filtrer par ID commune"),
+):
+    """
+    Retourne toutes les chefferies.
+    Filtre optionnel par commune.
+
+    Args:
+        id_commune (str | None): ID MongoDB de la commune.
+
+    Returns:
+        dict: {total, chefferies}
+    """
+    filtre = {}
+    if id_commune:
+        filtre["id_commune"] = id_commune
+
+    chefferies = list(get_collection(Collections.CHEFFERIES).find(filtre))
+    for c in chefferies:
+        c["_id"] = str(c["_id"])
+
+    return {"total": len(chefferies), "chefferies": chefferies}
+
+
+@app.get("/ethnies")
+def lister_ethnies(
+    id_commune: str = Query(default=None, description="Filtrer par ID commune"),
+):
+    """
+    Retourne toutes les ethnies.
+    Filtre optionnel par commune.
+
+    Args:
+        id_commune (str | None): ID MongoDB de la commune.
+
+    Returns:
+        dict: {total, ethnies}
+    """
+    filtre = {}
+    if id_commune:
+        filtre["id_commune"] = id_commune
+
+    ethnies = list(get_collection(Collections.ETHNIES).find(filtre))
+    for e in ethnies:
+        e["_id"] = str(e["_id"])
+
+    return {"total": len(ethnies), "ethnies": ethnies}
+
+
+@app.get("/marches")
+def lister_marches(
+    id_commune: str = Query(default=None, description="Filtrer par ID commune"),
+):
+    """
+    Retourne tous les marches.
+    Filtre optionnel par commune.
+
+    Args:
+        id_commune (str | None): ID MongoDB de la commune.
+
+    Returns:
+        dict: {total, marches}
+    """
+    filtre = {}
+    if id_commune:
+        filtre["id_commune"] = id_commune
+
+    marches = list(get_collection(Collections.MARCHES).find(filtre))
+    for m in marches:
+        m["_id"] = str(m["_id"])
+
+    return {"total": len(marches), "marches": marches}
+
+
+@app.get("/lieux/types")
+def lister_types_lieux():
+    """
+    Retourne la liste des types de lieux disponibles
+    dans la base de donnees avec leur nombre de lieux.
+
+    Returns:
+        dict: {types} — liste des types avec compteurs.
+    """
+    # On utilise une agregation MongoDB pour grouper par type
+    pipeline = [
+        {"$group": {"_id": "$type_nom", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+    ]
+    resultats = list(get_collection(Collections.LIEUX).aggregate(pipeline))
+
+    return {
+        "types": [
+            {"type": r["_id"], "count": r["count"]}
+            for r in resultats
+            if r["_id"]
+        ]
+    }
+
+
+@app.get("/lieux")
+def lister_lieux(
+    id_commune: str = Query(default=None, description="Filtrer par ID commune"),
+    type_lieu: str  = Query(default=None, description="Filtrer par type de lieu"),
+):
+    """
+    Retourne tous les lieux avec filtres optionnels.
+
+    Args:
+        id_commune (str | None): ID MongoDB de la commune.
+        type_lieu (str | None): Type de lieu (scolaire, urgence, etc.).
+
+    Returns:
+        dict: {total, lieux}
+    """
+    filtre = {}
+    if id_commune:
+        filtre["id_commune"] = id_commune
+    if type_lieu:
+        filtre["type_nom"] = {"$regex": type_lieu, "$options": "i"}
+
+    lieux = list(get_collection(Collections.LIEUX).find(filtre))
+    for l in lieux:
+        l["_id"] = str(l["_id"])
+
+    return {"total": len(lieux), "lieux": lieux}
+
+
+@app.get("/cooperatives")
+def lister_cooperatives(
+    id_commune: str = Query(default=None, description="Filtrer par ID commune"),
+):
+    """
+    Retourne toutes les cooperatives et GIC.
+    Filtre optionnel par commune.
+
+    Args:
+        id_commune (str | None): ID MongoDB de la commune.
+
+    Returns:
+        dict: {total, cooperatives}
+    """
+    filtre = {}
+    if id_commune:
+        filtre["id_commune"] = id_commune
+
+    cooperatives = list(get_collection(Collections.COOPERATIVES).find(filtre))
+    for c in cooperatives:
+        c["_id"] = str(c["_id"])
+
+    return {"total": len(cooperatives), "cooperatives": cooperatives}
+
+
+@app.get("/exercices")
+def lister_exercices(
+    id_commune: str = Query(default=None, description="Filtrer par ID commune"),
+):
+    """
+    Retourne tous les exercices annuels.
+    Filtre optionnel par commune.
+
+    Args:
+        id_commune (str | None): ID MongoDB de la commune.
+
+    Returns:
+        dict: {total, exercices}
+    """
+    filtre = {}
+    if id_commune:
+        filtre["id_commune"] = id_commune
+
+    exercices = list(get_collection(Collections.EXERCICES).find(filtre))
+    for e in exercices:
+        e["_id"] = str(e["_id"])
+
+    return {"total": len(exercices), "exercices": exercices}
 # ════════════════════════════════════════════════════════════════
 # ROUTE EXPORT
 # ════════════════════════════════════════════════════════════════
