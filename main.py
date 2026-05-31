@@ -15,7 +15,8 @@ Ce module definit toutes les routes HTTP de l'application :
 - GET  /communes                  → liste les communes avec filtres
 - GET  /communes/{id}             → detail complet d'une commune
 - GET  /export                    → exporte les donnees en CSV ou Excel
-
+- GET /sync/status                 → status de synchronisation pour le mobile
+- GET /sync/changes                → donnees modifiees depuis un timestamp  
 L'interface web (HTML/CSS/JS) est servie depuis le dossier static/.
 """
 
@@ -1032,89 +1033,89 @@ def sync_full():
     }
 
 
-@app.get("/sync/region/{id_region}")
-def sync_region(id_region: str):
-    """
-    Retourne toutes les donnees liees a une region specifique.
-    Utile pour une sync partielle — l'agent synchronise
-    uniquement sa region de travail.
+# @app.get("/sync/region/{id_region}")
+# def sync_region(id_region: str):
+#     """
+#     Retourne toutes les donnees liees a une region specifique.
+#     Utile pour une sync partielle — l'agent synchronise
+#     uniquement sa region de travail.
 
-    Args:
-        id_region (str): L'_id MongoDB de la region.
+#     Args:
+#         id_region (str): L'_id MongoDB de la region.
 
-    Returns:
-        dict: Toutes les donnees de la region avec ses sous-documents.
+#     Returns:
+#         dict: Toutes les donnees de la region avec ses sous-documents.
 
-    Raises:
-        HTTPException 400: ID invalide.
-        HTTPException 404: Region introuvable.
-    """
-    from bson import ObjectId
-    from bson.errors import InvalidId
+#     Raises:
+#         HTTPException 400: ID invalide.
+#         HTTPException 404: Region introuvable.
+#     """
+#     from bson import ObjectId
+#     from bson.errors import InvalidId
 
-    try:
-        objet_id = ObjectId(id_region)
-    except InvalidId:
-        raise HTTPException(
-            status_code=400,
-            detail=f"ID invalide : '{id_region}'."
-        )
+#     try:
+#         objet_id = ObjectId(id_region)
+#     except InvalidId:
+#         raise HTTPException(
+#             status_code=400,
+#             detail=f"ID invalide : '{id_region}'."
+#         )
 
-    # ── Region ───────────────────────────────────────────────────
-    region = get_collection(Collections.REGIONS).find_one({"_id": objet_id})
-    if not region:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Region introuvable : {id_region}."
-        )
-    region["_id"] = str(region["_id"])
+#     # ── Region ───────────────────────────────────────────────────
+#     region = get_collection(Collections.REGIONS).find_one({"_id": objet_id})
+#     if not region:
+#         raise HTTPException(
+#             status_code=404,
+#             detail=f"Region introuvable : {id_region}."
+#         )
+#     region["_id"] = str(region["_id"])
 
-    # ── Departements ─────────────────────────────────────────────
-    departements     = list(get_collection(Collections.DEPARTEMENTS).find({"id_region": id_region}))
-    ids_departements = []
-    for d in departements:
-        ids_departements.append(str(d["_id"]))
-        d["_id"] = str(d["_id"])
+#     # ── Departements ─────────────────────────────────────────────
+#     departements     = list(get_collection(Collections.DEPARTEMENTS).find({"id_region": id_region}))
+#     ids_departements = []
+#     for d in departements:
+#         ids_departements.append(str(d["_id"]))
+#         d["_id"] = str(d["_id"])
 
-    # ── Arrondissements ──────────────────────────────────────────
-    arrondissements     = list(get_collection(Collections.ARRONDISSEMENTS).find({"id_departement": {"$in": ids_departements}}))
-    ids_arrondissements = []
-    for a in arrondissements:
-        ids_arrondissements.append(str(a["_id"]))
-        a["_id"] = str(a["_id"])
+#     # ── Arrondissements ──────────────────────────────────────────
+#     arrondissements     = list(get_collection(Collections.ARRONDISSEMENTS).find({"id_departement": {"$in": ids_departements}}))
+#     ids_arrondissements = []
+#     for a in arrondissements:
+#         ids_arrondissements.append(str(a["_id"]))
+#         a["_id"] = str(a["_id"])
 
-    # ── Communes ─────────────────────────────────────────────────
-    communes     = list(get_collection(Collections.COMMUNES).find({"id_arrondissement": {"$in": ids_arrondissements}}))
-    ids_communes = []
-    for c in communes:
-        ids_communes.append(str(c["_id"]))
-        c["_id"] = str(c["_id"])
-        if c.get("created_at"): c["created_at"] = c["created_at"].isoformat()
-        if c.get("updated_at"): c["updated_at"] = c["updated_at"].isoformat()
+#     # ── Communes ─────────────────────────────────────────────────
+#     communes     = list(get_collection(Collections.COMMUNES).find({"id_arrondissement": {"$in": ids_arrondissements}}))
+#     ids_communes = []
+#     for c in communes:
+#         ids_communes.append(str(c["_id"]))
+#         c["_id"] = str(c["_id"])
+#         if c.get("created_at"): c["created_at"] = c["created_at"].isoformat()
+#         if c.get("updated_at"): c["updated_at"] = c["updated_at"].isoformat()
 
-    # ── Sous-documents ───────────────────────────────────────────
-    filtre_communes = {"id_commune": {"$in": ids_communes}}
+#     # ── Sous-documents ───────────────────────────────────────────
+#     filtre_communes = {"id_commune": {"$in": ids_communes}}
 
-    def fetch_sous(col_nom: str) -> list[dict]:
-        """Recupere les sous-documents lies aux communes de la region."""
-        docs = list(get_collection(col_nom).find(filtre_communes))
-        for doc in docs:
-            doc["_id"] = str(doc["_id"])
-            if doc.get("created_at"): doc["created_at"] = doc["created_at"].isoformat()
-            if doc.get("updated_at"): doc["updated_at"] = doc["updated_at"].isoformat()
-        return docs
+#     def fetch_sous(col_nom: str) -> list[dict]:
+#         """Recupere les sous-documents lies aux communes de la region."""
+#         docs = list(get_collection(col_nom).find(filtre_communes))
+#         for doc in docs:
+#             doc["_id"] = str(doc["_id"])
+#             if doc.get("created_at"): doc["created_at"] = doc["created_at"].isoformat()
+#             if doc.get("updated_at"): doc["updated_at"] = doc["updated_at"].isoformat()
+#         return docs
 
-    return {
-        "server_time":     datetime.now(timezone.utc).isoformat(),
-        "region":          region,
-        "departements":    departements,
-        "arrondissements": arrondissements,
-        "communes":        communes,
-        "villages":        fetch_sous(Collections.VILLAGES),
-        "chefferies":      fetch_sous(Collections.CHEFFERIES),
-        "ethnies":         fetch_sous(Collections.ETHNIES),
-        "marches":         fetch_sous(Collections.MARCHES),
-        "lieux":           fetch_sous(Collections.LIEUX),
-        "cooperatives":    fetch_sous(Collections.COOPERATIVES),
-        "exercices":       fetch_sous(Collections.EXERCICES),
-    }
+#     return {
+#         "server_time":     datetime.now(timezone.utc).isoformat(),
+#         "region":          region,
+#         "departements":    departements,
+#         "arrondissements": arrondissements,
+#         "communes":        communes,
+#         "villages":        fetch_sous(Collections.VILLAGES),
+#         "chefferies":      fetch_sous(Collections.CHEFFERIES),
+#         "ethnies":         fetch_sous(Collections.ETHNIES),
+#         "marches":         fetch_sous(Collections.MARCHES),
+#         "lieux":           fetch_sous(Collections.LIEUX),
+#         "cooperatives":    fetch_sous(Collections.COOPERATIVES),
+#         "exercices":       fetch_sous(Collections.EXERCICES),
+#     }
