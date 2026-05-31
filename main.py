@@ -21,7 +21,7 @@ L'interface web (HTML/CSS/JS) est servie depuis le dossier static/.
 
 import io
 import logging
-
+from datetime import datetime, timezone
 import pandas as pd
 from bson import ObjectId
 from bson.errors import InvalidId
@@ -888,3 +888,233 @@ def exporter_donnees(
                     "attachment; filename=communes_export.xlsx"
             }
         )
+
+# ════════════════════════════════════════════════════════════════
+# ROUTES SYNCHRONISATION MOBILE
+# ════════════════════════════════════════════════════════════════
+
+@app.get("/sync/status")
+def sync_status():
+    """
+     Retourne le timestamp de la derniere modification
+    dans chaque collection. Le mobile compare ces valeurs
+    avec son dernier timestamp de sync pour savoir
+    quelles collections ont change.
+
+    Returns:
+        dict: {collection: last_updated_at} pour chaque collection.
+    """
+    collections = {
+        "regions":         Collections.REGIONS,
+        "departements":    Collections.DEPARTEMENTS,
+        "arrondissements": Collections.ARRONDISSEMENTS,
+        "communes":        Collections.COMMUNES,
+        "villages":        Collections.VILLAGES,
+        "chefferies":      Collections.CHEFFERIES,
+        "ethnies":         Collections.ETHNIES,
+        "marches":         Collections.MARCHES,
+        "lieux":           Collections.LIEUX,
+        "cooperatives":    Collections.COOPERATIVES,
+        "exercices":       Collections.EXERCICES,
+    }
+    
+    status = {}
+    for nom, col_name in collections.items():
+        dernier = get_collection(col_name).find_one(
+            {"updated_at": {"$exists": True}},
+            sort=[("updated_at", -1)],
+        )
+        status[nom]=(
+            dernier["updated_at"].isoformat()
+            if dernier and dernier.get("updated_at") else None
+        )
+    return {
+        "server_time": datetime.now(timezone.utc).isoformat(),
+        "collections": status,
+    }
+    
+@app.get("/sync/changes")
+def sync_changes(
+    since: str = Query(
+        ...,
+        description="Timestamp ISO 8601 de la derniere sync du mobile. "
+                    "Ex: 2026-05-01T00:00:00Z"
+    )
+):
+    """
+    Retourne tous les documents modifies ou crees depuis
+    le timestamp fourni, pour toutes les collections.
+
+    Args:
+        since (str): Timestamp ISO 8601 de reference.
+
+    Returns:
+        dict: Donnees modifiees par collection + timestamp serveur.
+
+    Raises:
+        HTTPException 400: Si le timestamp est invalide.
+    """
+    try:
+        since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Timestamp invalide : '{since}'. "
+                   f"Format attendu : ISO 8601 (ex: 2026-05-01T00:00:00Z)"
+        )
+
+    filtre_date = {"updated_at": {"$gt": since_dt}}
+
+    def fetch_changes(collection_nom: str) -> list[dict]:
+        """Recupere les documents modifies depuis since_dt."""
+        docs = list(get_collection(collection_nom).find(filtre_date))
+        for doc in docs:
+            doc["_id"] = str(doc["_id"])
+            if doc.get("created_at"):
+                doc["created_at"] = doc["created_at"].isoformat()
+            if doc.get("updated_at"):
+                doc["updated_at"] = doc["updated_at"].isoformat()
+        return docs
+
+    return {
+        "since": since,
+        "server_time": datetime.now(timezone.utc).isoformat(),
+        "changes": {
+            "regions":         fetch_changes(Collections.REGIONS),
+            "departements":    fetch_changes(Collections.DEPARTEMENTS),
+            "arrondissements": fetch_changes(Collections.ARRONDISSEMENTS),
+            "communes":        fetch_changes(Collections.COMMUNES),
+            "villages":        fetch_changes(Collections.VILLAGES),
+            "chefferies":      fetch_changes(Collections.CHEFFERIES),
+            "ethnies":         fetch_changes(Collections.ETHNIES),
+            "marches":         fetch_changes(Collections.MARCHES),
+            "lieux":           fetch_changes(Collections.LIEUX),
+            "cooperatives":    fetch_changes(Collections.COOPERATIVES),
+            "exercices":       fetch_changes(Collections.EXERCICES),
+        }
+    }
+@app.get("/sync/full")
+def sync_full():
+    """
+    Retourne la totalite des donnees de toutes les collections.
+    A utiliser uniquement lors de la premiere installation
+    de l'application mobile ou d'une reinitialisation complete.
+
+    Returns:
+        dict: Toutes les collections + timestamp serveur.
+    """
+    def fetch_all(collection_nom: str) -> list[dict]:
+        """Recupere tous les documents d'une collection."""
+        docs = list(get_collection(collection_nom).find())
+        for doc in docs:
+            doc["_id"] = str(doc["_id"])
+            if doc.get("created_at"):
+                doc["created_at"] = doc["created_at"].isoformat()
+            if doc.get("updated_at"):
+                doc["updated_at"] = doc["updated_at"].isoformat()
+        return docs
+
+    return {
+        "server_time": datetime.now(timezone.utc).isoformat(),
+        "data": {
+            "regions":         fetch_all(Collections.REGIONS),
+            "departements":    fetch_all(Collections.DEPARTEMENTS),
+            "arrondissements": fetch_all(Collections.ARRONDISSEMENTS),
+            "communes":        fetch_all(Collections.COMMUNES),
+            "villages":        fetch_all(Collections.VILLAGES),
+            "chefferies":      fetch_all(Collections.CHEFFERIES),
+            "ethnies":         fetch_all(Collections.ETHNIES),
+            "marches":         fetch_all(Collections.MARCHES),
+            "lieux":           fetch_all(Collections.LIEUX),
+            "cooperatives":    fetch_all(Collections.COOPERATIVES),
+            "exercices":       fetch_all(Collections.EXERCICES),
+        }
+    }
+
+
+@app.get("/sync/region/{id_region}")
+def sync_region(id_region: str):
+    """
+    Retourne toutes les donnees liees a une region specifique.
+    Utile pour une sync partielle — l'agent synchronise
+    uniquement sa region de travail.
+
+    Args:
+        id_region (str): L'_id MongoDB de la region.
+
+    Returns:
+        dict: Toutes les donnees de la region avec ses sous-documents.
+
+    Raises:
+        HTTPException 400: ID invalide.
+        HTTPException 404: Region introuvable.
+    """
+    from bson import ObjectId
+    from bson.errors import InvalidId
+
+    try:
+        objet_id = ObjectId(id_region)
+    except InvalidId:
+        raise HTTPException(
+            status_code=400,
+            detail=f"ID invalide : '{id_region}'."
+        )
+
+    # ── Region ───────────────────────────────────────────────────
+    region = get_collection(Collections.REGIONS).find_one({"_id": objet_id})
+    if not region:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Region introuvable : {id_region}."
+        )
+    region["_id"] = str(region["_id"])
+
+    # ── Departements ─────────────────────────────────────────────
+    departements     = list(get_collection(Collections.DEPARTEMENTS).find({"id_region": id_region}))
+    ids_departements = []
+    for d in departements:
+        ids_departements.append(str(d["_id"]))
+        d["_id"] = str(d["_id"])
+
+    # ── Arrondissements ──────────────────────────────────────────
+    arrondissements     = list(get_collection(Collections.ARRONDISSEMENTS).find({"id_departement": {"$in": ids_departements}}))
+    ids_arrondissements = []
+    for a in arrondissements:
+        ids_arrondissements.append(str(a["_id"]))
+        a["_id"] = str(a["_id"])
+
+    # ── Communes ─────────────────────────────────────────────────
+    communes     = list(get_collection(Collections.COMMUNES).find({"id_arrondissement": {"$in": ids_arrondissements}}))
+    ids_communes = []
+    for c in communes:
+        ids_communes.append(str(c["_id"]))
+        c["_id"] = str(c["_id"])
+        if c.get("created_at"): c["created_at"] = c["created_at"].isoformat()
+        if c.get("updated_at"): c["updated_at"] = c["updated_at"].isoformat()
+
+    # ── Sous-documents ───────────────────────────────────────────
+    filtre_communes = {"id_commune": {"$in": ids_communes}}
+
+    def fetch_sous(col_nom: str) -> list[dict]:
+        """Recupere les sous-documents lies aux communes de la region."""
+        docs = list(get_collection(col_nom).find(filtre_communes))
+        for doc in docs:
+            doc["_id"] = str(doc["_id"])
+            if doc.get("created_at"): doc["created_at"] = doc["created_at"].isoformat()
+            if doc.get("updated_at"): doc["updated_at"] = doc["updated_at"].isoformat()
+        return docs
+
+    return {
+        "server_time":     datetime.now(timezone.utc).isoformat(),
+        "region":          region,
+        "departements":    departements,
+        "arrondissements": arrondissements,
+        "communes":        communes,
+        "villages":        fetch_sous(Collections.VILLAGES),
+        "chefferies":      fetch_sous(Collections.CHEFFERIES),
+        "ethnies":         fetch_sous(Collections.ETHNIES),
+        "marches":         fetch_sous(Collections.MARCHES),
+        "lieux":           fetch_sous(Collections.LIEUX),
+        "cooperatives":    fetch_sous(Collections.COOPERATIVES),
+        "exercices":       fetch_sous(Collections.EXERCICES),
+    }

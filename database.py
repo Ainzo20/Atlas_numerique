@@ -8,8 +8,9 @@ Ce module expose :
 - Des fonctions utilitaires pour acceder aux collections
 - Une fonction de verification de la connexion
 """
-
 import logging
+from datetime import datetime, timezone
+from bson import ObjectId
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
@@ -17,11 +18,17 @@ from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 
 from config import MONGODB_URI, MONGODB_DB
 
+
 # ── Configuration du logger ─────────────────────────────────────
 logger = logging.getLogger(__name__)
 
 # ── Instance unique du client MongoDB ──────────────────────────
 _client: MongoClient | None = None
+
+#recuperation  de la date actuelle 
+def _now() -> datetime:
+    """Retourne l'heure actuelle en UTC."""
+    return datetime.now(timezone.utc)
 
 
 def get_client() -> MongoClient:
@@ -154,7 +161,9 @@ def trouver_ou_creer(
         # son utilisation comme reference dans d'autres documents
         return str(existant["_id"])
 
-    # Document absent — on l'insere
+    # Document absent — on ajoute les timestamps et on l'insere
+    document["created_at"] = _now()
+    document["updated_at"] = _now()
     resultat = collection.insert_one(document)
     logger.info(
         f"[{collection_nom}] Nouveau document insere : {filtre}"
@@ -216,9 +225,11 @@ def inserer_sous_documents(
 
     collection = get_collection(collection_nom)
 
-    # On remplace "PENDING" par le vrai id_commune dans chaque document
+    # On remplace "PENDING" par le vrai id_commune dans chaque document et on ajoute les timestamps
     for doc in documents:
         doc["id_commune"] = id_commune
+        doc["created_at"] = _now()
+        doc["updated_at"] = _now()
 
     resultat = collection.insert_many(documents)
     logger.info(
@@ -319,9 +330,11 @@ def inserer_commune_complete(commune_parsee: dict) -> dict:
             submitted_by=commune["submitted_by"],
             submission_time=commune["submission_time"],
         )
-        # On ajoute id_arrondissement au document commune
+        # On ajoute id_arrondissement au et les timestamp document commune 
+        now = _now()
         doc_commune["id_arrondissement"] = id_arrondissement
-
+        doc_commune["created_at"] = now
+        doc_commune["updated_at"] = now
         resultat = get_collection(Collections.COMMUNES).insert_one(doc_commune)
         id_commune = str(resultat.inserted_id)
         statut = "nouvelle"
