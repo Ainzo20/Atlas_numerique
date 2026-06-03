@@ -315,3 +315,4 @@ Render détecte automatiquement chaque push sur `main` et redéploie.
 ---
 
 > Document technique complet disponible dans `/docs/doc_technique_atlas.pdf`
+> Documentation complète de l'API disponible dans [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md)

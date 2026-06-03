@@ -256,6 +256,8 @@ async function lancerImport() {
     afficherRapport({ message: erreur.message }, false);
   }
 
+  // Réafficher la zone de dépôt pour permettre un nouvel import
+  document.getElementById("dropZone").style.display = "block";
   feather.replace();
 }
 
