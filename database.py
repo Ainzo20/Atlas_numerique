@@ -116,6 +116,7 @@ class Collections:
     TYPES            = "types"
     SOUS_TYPES       = "sous_types"
     TYPES_COMMUNE    = "types_commune"
+    API_KEYS         = "api_keys"
 
 # ════════════════════════════════════════════════════════════════
 # FONCTIONS D'INSERTION ET DE RECHERCHE

@@ -10,13 +10,15 @@ from datetime import datetime, timezone
 import pandas as pd
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile, Depends, Cookie, Form, Response
+from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from auth import require_scope, valider_api_key, verifier_api_key
 
 from config import MONGODB_DB
 from database import Collections, check_connection, get_collection, inserer_toutes_communes
 from parser import parser_csv
+
 
 # Import des schemas de documentation
 from schemas import (
@@ -102,10 +104,63 @@ def remonter_hierarchie(id_arrondissement: str) -> dict:
 # ════════════════════════════════════════════════════════════════
 # ROUTES GENERALES
 # ════════════════════════════════════════════════════════════════
-
 @app.get("/", include_in_schema=False)
-def servir_interface():
+def servir_interface(atlas_session: str | None = Cookie(default=None)):
+    logger.info(f"🔍 Requête sur '/' reçue. Cookie 'atlas_session' présent : {bool(atlas_session)}")
+    
+    if not atlas_session:
+        logger.warning("⚠️ Aucun cookie trouvé. Redirection vers /login.")
+        return RedirectResponse(url="/login", status_code=302)
+    
+    client = verifier_api_key(atlas_session)
+    if not client:
+        logger.warning(f"⚠️ Cookie présent mais CLÉ INVALIDE ou RÉVOQUÉE ({atlas_session[:15]}...). Redirection et suppression du cookie.")
+        response = RedirectResponse(url="/login", status_code=302)
+        response.delete_cookie("atlas_session")
+        return response
+    
+    logger.info("✅ Authentification réussie. Service de index.html.")
     return FileResponse("static/index.html")
+
+@app.get("/login", include_in_schema=False)
+def servir_login():
+    """Sert la page de connexion (publique, sans authentification)."""
+    return FileResponse("static/login.html")
+
+@app.post("/api/login", include_in_schema=False)
+async def traiter_login(
+    api_key: str = Form(...)
+):
+    """
+    Reçoit la clé API du formulaire, la vérifie, et crée le cookie de session si elle est valide.
+    """
+    # 1. Nettoyer les espaces et vérifier la clé
+    clean_api_key = api_key.strip()
+    logger.info(f"Tentative de connexion avec la clé (début) : {clean_api_key[:15]}...")
+    
+    client = verifier_api_key(clean_api_key)
+    
+    if not client:
+        logger.warning("⚠️ ÉCHEC : La clé API est invalide ou introuvable en base de données.")
+        return RedirectResponse(url="/login?error=invalid_key", status_code=302)
+    
+    logger.info("✅ SUCCÈS : Clé valide. Préparation de la redirection avec cookie.")
+    
+    # 2. Créer l'objet de réponse de redirection
+    response = RedirectResponse(url="/", status_code=302)
+    
+    # 3. ATTACHER le cookie directement à cet objet de redirection
+    response.set_cookie(
+        key="atlas_session",
+        value=clean_api_key,
+        httponly=True,      # Invisible au JavaScript
+        secure=True,       # Mettre à True uniquement en production avec HTTPS
+        samesite="lax",     # Protection basique contre les attaques CSRF
+        max_age=86400 * 7   # Le cookie expire dans 7 jours
+    )
+    
+    # 4. Retourner la réponse (qui contient maintenant à la fois la redirection ET le cookie)
+    return response
 
 @app.get("/health", tags=["Sante & Stats"], response_model=HealthResponse, responses={500: {"model": ErrorResponse}})
 def verifier_sante():
@@ -127,19 +182,32 @@ def statistiques_globales():
         "cooperatives": get_collection(Collections.COOPERATIVES).count_documents({}),
         "exercices": get_collection(Collections.EXERCICES).count_documents({}),
     }
+    
 
 # ════════════════════════════════════════════════════════════════
 # ROUTE IMPORT
 # ════════════════════════════════════════════════════════════════
 
 @app.post(
-    "/import", tags=["Import & Export"], response_model=ImportReportResponse,
+    "/import", 
+    tags=["Import & Export"],
+    response_model=ImportReportResponse,
+    summary="Importer un fichier CSV KoboCollect (Authentification requise)",
+    description="Necessite une cle API valide avec le scope 'write'.",
     responses={
+         # [AUTH] Documentation des erreurs d'authentification
+        401: {"description": "Clef API manquante", "model": ErrorResponse},
+        403: {"description": "Clef invalide ou permissions insuffisantes", "model": ErrorResponse},
         400: {"description": "Fichier invalide ou erreur de parsing", "model": ErrorResponse},
         500: {"description": "Erreur interne lors de l'insertion", "model": ErrorResponse}
     }
 )
-async def importer_csv(fichier: UploadFile = File(..., description="Fichier CSV KoboCollect a uploader")):
+async def importer_csv(
+    fichier: UploadFile = File(..., description="Fichier CSV KoboCollect a uploader"),
+    client: dict = Depends(require_scope("write"))
+    ):
+    logger.info(f"Import initiee par le client : {client['client_name']} (Scopes: {client['scopes']})")
+
     if not fichier.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Le fichier doit etre au format CSV (.csv).")
 
@@ -169,8 +237,17 @@ async def importer_csv(fichier: UploadFile = File(..., description="Fichier CSV 
 # ROUTES HIERARCHIE
 # ════════════════════════════════════════════════════════════════
 
-@app.get("/regions", tags=["Hierarchie"], response_model=RegionsListResponse, responses={500: {"model": ErrorResponse}})
-def lister_regions():
+@app.get(
+    "/regions",
+    tags=["Hierarchie"],
+    response_model=RegionsListResponse,
+    responses={
+        401: {"description": "Clef API manquante", "model": ErrorResponse},
+        403: {"description": "Permissions insuffisantes", "model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    })
+def lister_regions(client: dict = Depends(require_scope("read"))):
+    logger.info(f"Liste des regions consultee par : {client['client_name']}")
     regions = list(get_collection(Collections.REGIONS).find())
     for region in regions:
         id_region = str(region["_id"])
@@ -178,8 +255,18 @@ def lister_regions():
         region["nb_departements"] = get_collection(Collections.DEPARTEMENTS).count_documents({"id_region": id_region})
     return {"total": len(regions), "regions": regions}
 
-@app.get("/regions/{id_region}", tags=["Hierarchie"], response_model=RegionDetailResponse, responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}})
-def detail_region(id_region: str):
+@app.get(
+    "/regions/{id_region}"
+    , tags=["Hierarchie"],
+    response_model=RegionDetailResponse,
+    responses={
+        401: {"description": "Clef API manquante", "model": ErrorResponse},
+        403: {"description": "Permissions insuffisantes", "model": ErrorResponse},
+        400: {"model": ErrorResponse},
+        404: {"model": ErrorResponse}
+    })
+def detail_region(id_region: str, client: dict = Depends(require_scope("read"))):
+    
     objet_id = valider_object_id(id_region)
     region = get_collection(Collections.REGIONS).find_one({"_id": objet_id})
     if not region:
@@ -194,8 +281,16 @@ def detail_region(id_region: str):
 
     return {"region": region, "departements": departements}
 
-@app.get("/departements/{id_departement}", tags=["Hierarchie"], response_model=DepartementDetailResponse, responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}})
-def detail_departement(id_departement: str):
+@app.get(
+    "/departements/{id_departement}",
+    tags=["Hierarchie"], response_model=DepartementDetailResponse, 
+   responses={
+        401: {"description": "Clef API manquante", "model": ErrorResponse},
+        403: {"description": "Permissions insuffisantes", "model": ErrorResponse},
+        400: {"model": ErrorResponse},
+        404: {"model": ErrorResponse}
+    })
+def detail_departement(id_departement: str, client: dict = Depends(require_scope("read"))):
     objet_id = valider_object_id(id_departement)
     departement = get_collection(Collections.DEPARTEMENTS).find_one({"_id": objet_id})
     if not departement:
@@ -210,8 +305,16 @@ def detail_departement(id_departement: str):
 
     return {"departement": departement, "arrondissements": arrondissements}
 
-@app.get("/arrondissements/{id_arrondissement}", tags=["Hierarchie"], response_model=ArrondissementDetailResponse, responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}})
-def detail_arrondissement(id_arrondissement: str):
+@app.get(
+    "/arrondissements/{id_arrondissement}",
+    tags=["Hierarchie"], response_model=ArrondissementDetailResponse,
+    responses={
+        401: {"description": "Clef API manquante", "model": ErrorResponse},
+        403: {"description": "Permissions insuffisantes", "model": ErrorResponse},
+        400: {"model": ErrorResponse},
+        404: {"model": ErrorResponse}
+    })
+def detail_arrondissement(id_arrondissement: str, client: dict = Depends(require_scope("read"))):
     objet_id = valider_object_id(id_arrondissement)
     arrondissement = get_collection(Collections.ARRONDISSEMENTS).find_one({"_id": objet_id})
     if not arrondissement:
@@ -229,12 +332,20 @@ def detail_arrondissement(id_arrondissement: str):
 # ════════════════════════════════════════════════════════════════
 
 @app.get(
-    "/communes", tags=["Communes & Lieux"], response_model=CommunesListResponse, responses={500: {"model": ErrorResponse}},
+    "/communes",
+    tags=["Communes & Lieux"],
+    response_model=CommunesListResponse, 
+    responses={
+        401: {"description": "Clef API manquante", "model": ErrorResponse},
+        403: {"description": "Permissions insuffisantes", "model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    },
     description="La recherche par nom est insensible a la casse."
 )
 def lister_communes(
     region: str = Query(default=None, description="Filtrer par nom de region", examples=["Centre", "Littoral"]),
     departement: str = Query(default=None, description="Filtrer par nom de departement", examples=["Mfoundi", "Wouri"]),
+    client: dict = Depends(require_scope("read"))
 ):
     ids_arrondissements_valides = None
     if region or departement:
@@ -266,8 +377,17 @@ def lister_communes(
         })
     return {"total": len(resultats), "communes": resultats}
 
-@app.get("/communes/{id_commune}", tags=["Communes & Lieux"], response_model=CommuneDetailResponse, responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}})
-def detail_commune(id_commune: str):
+@app.get(
+    "/communes/{id_commune}",
+    tags=["Communes & Lieux"], 
+    response_model=CommuneDetailResponse, 
+    responses={
+        401: {"description": "Clef API manquante", "model": ErrorResponse},
+        403: {"description": "Permissions insuffisantes", "model": ErrorResponse},
+        400: {"model": ErrorResponse},
+        404: {"model": ErrorResponse}
+    })
+def detail_commune(id_commune: str, client: dict = Depends(require_scope("read"))):
     objet_id = valider_object_id(id_commune)
     commune = get_collection(Collections.COMMUNES).find_one({"_id": objet_id})
     if not commune:
@@ -293,9 +413,17 @@ def detail_commune(id_commune: str):
 
 def creer_route_sous_document(nom_collection: str, nom_endpoint: str, description: str):
     """Fonction utilitaire pour éviter de répéter 100 lignes de code identique"""
-    @app.get(f"/{nom_endpoint}", tags=["Communes & Lieux"], responses={500: {"model": ErrorResponse}})
+    @app.get(
+        f"/{nom_endpoint}",
+        tags=["Communes & Lieux"],
+       responses={
+            401: {"description": "Clef API manquante", "model": ErrorResponse},
+            403: {"description": "Permissions insuffisantes", "model": ErrorResponse},
+            500: {"model": ErrorResponse}
+        })
     def lister(
-        id_commune: str = Query(default=None, description="Filtrer par ID MongoDB de la commune", examples=["60d5ec49f1b2c8b1f8e4e1a2"])
+        id_commune: str = Query(default=None, description="Filtrer par ID MongoDB de la commune", examples=["60d5ec49f1b2c8b1f8e4e1a2"]),
+         client: dict = Depends(require_scope("read"))
     ):
         filtre = {"id_commune": id_commune} if id_commune else {}
         docs = list(get_collection(nom_collection).find(filtre))
@@ -310,16 +438,33 @@ creer_route_sous_document(Collections.MARCHES, "marches", "Liste des marches")
 creer_route_sous_document(Collections.COOPERATIVES, "cooperatives", "Liste des cooperatives")
 creer_route_sous_document(Collections.EXERCICES, "exercices", "Liste des exercices")
 
-@app.get("/lieux/types", tags=["Communes & Lieux"], response_model=LieuxTypesResponse, responses={500: {"model": ErrorResponse}})
-def lister_types_lieux():
+@app.get(
+    "/lieux/types",
+    tags=["Communes & Lieux"],
+    response_model=LieuxTypesResponse,
+     responses={
+        401: {"description": "Clef API manquante", "model": ErrorResponse},
+        403: {"description": "Permissions insuffisantes", "model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    })
+
+def lister_types_lieux(client: dict = Depends(require_scope("read"))):
     pipeline = [{"$group": {"_id": "$type_nom", "count": {"$sum": 1}}}, {"$sort": {"count": -1}}]
     resultats = list(get_collection(Collections.LIEUX).aggregate(pipeline))
     return {"types": [{"type": r["_id"], "count": r["count"]} for r in resultats if r["_id"]]}
 
-@app.get("/lieux", tags=["Communes & Lieux"], responses={500: {"model": ErrorResponse}})
+@app.get(
+    "/lieux",
+    tags=["Communes & Lieux"],
+     responses={
+        401: {"description": "Clef API manquante", "model": ErrorResponse},
+        403: {"description": "Permissions insuffisantes", "model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    })
 def lister_lieux(
     id_commune: str = Query(default=None, description="Filtrer par ID commune", examples=["60d5ec49f1b2c8b1f8e4e1a2"]),
-    type_lieu: str = Query(default=None, description="Filtrer par type (ex: scolaire, urgence)", examples=["scolaire", "urgence"])
+    type_lieu: str = Query(default=None, description="Filtrer par type (ex: scolaire, urgence)", examples=["scolaire", "urgence"]),
+    client: dict = Depends(require_scope("read"))
 ):
     filtre = {}
     if id_commune: filtre["id_commune"] = id_commune
@@ -335,15 +480,18 @@ def lister_lieux(
 
 @app.get(
     "/export", tags=["Import & Export"],
-    responses={
+   responses={
         200: {"description": "Fichier genere avec succes (CSV ou Excel)"},
+        401: {"description": "Clef API manquante", "model": ErrorResponse},
+        403: {"description": "Permissions insuffisantes", "model": ErrorResponse},
         400: {"description": "Format invalide", "model": ErrorResponse},
         404: {"description": "Aucune commune trouvee", "model": ErrorResponse}
     }
 )
 def exporter_donnees(
     format: str = Query(default="csv", description="Format d'export", examples=["csv", "excel"]),
-    region: str = Query(default=None, description="Filtrer par nom de region", examples=["Centre", "Littoral"])
+    region: str = Query(default=None, description="Filtrer par nom de region", examples=["Centre", "Littoral"]),
+    client: dict = Depends(require_scope("read")) 
 ):
     if format not in ("csv", "excel"):
         raise HTTPException(status_code=400, detail="Format invalide. Utilisez 'csv' ou 'excel'.")
@@ -381,8 +529,18 @@ def exporter_donnees(
 # ROUTES SYNCHRONISATION MOBILE
 # ════════════════════════════════════════════════════════════════
 
-@app.get("/sync/status", tags=["Sync Mobile"], response_model=SyncStatusResponse, responses={500: {"model": ErrorResponse}})
-def sync_status():
+@app.get(
+    "/sync/status", 
+    tags=["Sync Mobile"], 
+    response_model=SyncStatusResponse, 
+     responses={
+        401: {"description": "Clef API manquante", "model": ErrorResponse},
+        403: {"description": "Permissions insuffisantes", "model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    }
+    )
+def sync_status(client: dict = Depends(require_scope("read"))):
+    logger.info(f"Sync status consultee par : {client['client_name']}")
     collections = {
         "regions": Collections.REGIONS, "departements": Collections.DEPARTEMENTS, "arrondissements": Collections.ARRONDISSEMENTS,
         "communes": Collections.COMMUNES, "villages": Collections.VILLAGES, "chefferies": Collections.CHEFFERIES,
@@ -397,11 +555,18 @@ def sync_status():
     return {"server_time": datetime.now(timezone.utc).isoformat(), "collections": status}
 
 @app.get(
-    "/sync/changes", tags=["Sync Mobile"], response_model=SyncChangesResponse,
-    responses={400: {"description": "Timestamp invalide", "model": ErrorResponse}}
+    "/sync/changes",
+    tags=["Sync Mobile"], 
+    response_model=SyncChangesResponse,
+    responses={
+        401: {"description": "Clef API manquante", "model": ErrorResponse},
+        403: {"description": "Permissions insuffisantes", "model": ErrorResponse},
+        400: {"description": "Timestamp invalide", "model": ErrorResponse}
+    }
 )
 def sync_changes(
-    since: str = Query(..., description="Timestamp ISO 8601 de la derniere sync du mobile", examples=["2026-05-01T00:00:00Z", "2026-06-01T14:30:00+00:00"])
+    since: str = Query(..., description="Timestamp ISO 8601 de la derniere sync du mobile", examples=["2026-05-01T00:00:00Z", "2026-06-01T14:30:00+00:00"]),
+    client: dict = Depends(require_scope("read"))
 ):
     try:
         since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
@@ -429,8 +594,17 @@ def sync_changes(
         }
     }
 
-@app.get("/sync/full", tags=["Sync Mobile"], response_model=SyncFullResponse, responses={500: {"model": ErrorResponse}})
-def sync_full():
+@app.get(
+    "/sync/full",
+    tags=["Sync Mobile"],
+    response_model=SyncFullResponse,
+    responses={
+        401: {"description": "Clef API manquante", "model": ErrorResponse},
+        403: {"description": "Permissions insuffisantes", "model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    })
+def sync_full(client: dict = Depends(require_scope("read"))):
+    logger.info(f"Sync full initiee par : {client['client_name']}")
     def fetch_all(collection_nom: str) -> list[dict]:
         docs = list(get_collection(collection_nom).find())
         for doc in docs:

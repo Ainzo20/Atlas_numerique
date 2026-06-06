@@ -1,0 +1,187 @@
+/* static/login.css */
+:root {
+    --bg: #0a0f1e;
+    --bg-2: #0f1628;
+    --bg-3: #151d35;
+    --border: #1e2d50;
+    --border-light: #2a3d6a;
+    --green: #007A5E;
+    --green-light: #00a07a;
+    --green-dim: rgba(0, 122, 94, 0.15);
+    --red: #CE1126;
+    --red-light: #e8162c;
+    --red-dim: rgba(206, 17, 38, 0.15);
+    --yellow: #FCD116;
+    --yellow-light: #fde04d;
+    --text: #CBD5E1;
+    --text-2: #8899B4;
+    --text-3: #4a5a78;
+    --radius: 8px;
+    --radius-lg: 14px;
+    --font-display: 'Playfair Display', Georgia, serif;
+    --font-body: 'Inter', sans-serif;
+  }
+  
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background-image: 
+      radial-gradient(circle at 20% 50%, rgba(0, 122, 94, 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(206, 17, 38, 0.05) 0%, transparent 50%);
+  }
+  
+  .login-container {
+    width: 100%;
+    max-width: 420px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 2.5rem 2rem;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+    animation: fadeIn 0.4s ease;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .login-header {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  
+  .login-flag {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 1.25rem;
+  }
+  
+  .login-flag span {
+    width: 8px;
+    height: 40px;
+    border-radius: 2px;
+  }
+  
+  .flag-green { background: var(--green); }
+  .flag-red { background: var(--red); }
+  .flag-yellow { background: var(--yellow); }
+  
+  .login-title {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.4rem;
+  }
+  
+  .login-subtitle {
+    font-size: 0.85rem;
+    color: var(--text-3);
+  }
+  
+  .login-message {
+    padding: 0.9rem 1.1rem;
+    border-radius: var(--radius);
+    margin-bottom: 1.25rem;
+    font-size: 0.85rem;
+    display: none;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  
+  .login-message.show { display: flex; }
+  .login-message.error {
+    background: var(--red-dim);
+    border: 1px solid var(--red);
+    color: var(--red-light);
+  }
+  
+  .form-group { margin-bottom: 1.5rem; }
+  
+  .form-label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-2);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+  
+  .form-input {
+    width: 100%;
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.85rem 1rem;
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    outline: none;
+  }
+  
+  .form-input:focus {
+    border-color: var(--green-light);
+    background: var(--bg);
+    box-shadow: 0 0 0 3px var(--green-dim);
+  }
+  
+  .form-hint {
+    font-size: 0.72rem;
+    color: var(--text-3);
+    margin-top: 0.5rem;
+    line-height: 1.5;
+  }
+  
+  .form-hint code {
+    background: var(--bg-3);
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    color: var(--yellow);
+  }
+  
+  .login-btn {
+    width: 100%;
+    background: var(--green);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    padding: 0.9rem 1.5rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+  
+  .login-btn:hover {
+    background: var(--green-light);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(0, 122, 94, 0.3);
+  }
+  
+  .login-footer {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-3);
+    line-height: 1.6;
+  }
