@@ -539,8 +539,8 @@ def exporter_donnees(
         500: {"model": ErrorResponse}
     }
     )
-def sync_status(client: dict = Depends(require_scope("read"))):
-    logger.info(f"Sync status consultee par : {client['client_name']}")
+def sync_status():
+    # logger.info(f"Sync status consultee par : {client['client_name']}")
     collections = {
         "regions": Collections.REGIONS, "departements": Collections.DEPARTEMENTS, "arrondissements": Collections.ARRONDISSEMENTS,
         "communes": Collections.COMMUNES, "villages": Collections.VILLAGES, "chefferies": Collections.CHEFFERIES,
@@ -566,7 +566,7 @@ def sync_status(client: dict = Depends(require_scope("read"))):
 )
 def sync_changes(
     since: str = Query(..., description="Timestamp ISO 8601 de la derniere sync du mobile", examples=["2026-05-01T00:00:00Z", "2026-06-01T14:30:00+00:00"]),
-    client: dict = Depends(require_scope("read"))
+    # client: dict = Depends(require_scope("read"))
 ):
     try:
         since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
@@ -603,8 +603,8 @@ def sync_changes(
         403: {"description": "Permissions insuffisantes", "model": ErrorResponse},
         500: {"model": ErrorResponse}
     })
-def sync_full(client: dict = Depends(require_scope("read"))):
-    logger.info(f"Sync full initiee par : {client['client_name']}")
+def sync_full():
+    # logger.info(f"Sync full initiee par : {client['client_name']}")
     def fetch_all(collection_nom: str) -> list[dict]:
         docs = list(get_collection(collection_nom).find())
         for doc in docs:
