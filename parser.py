@@ -30,32 +30,27 @@ from models import (
 logger = logging.getLogger(__name__)
 
 # ── Constantes ──────────────────────────────────────────────────
-SEP_ENTITES    = "|"
+# NOTE : le vrai export KoboCollect utilise "/" comme separateur d'entites,
+# pas "|". Si un jour une entite contient elle-meme un "/" (adresse,
+# horaire...), il faudra revoir ce choix avec le formulaire XLSForm.
+SEP_ENTITES    = "/"
 SEP_ATTRIBUTS  = "::"
 SEP_VALEURS    = ","
 VALEUR_ABSENTE = "RAS"
 
-# ── Mapping : nom interne → nom exact dans le CSV (ancien ou nouveau) ──
-# Permet la compatibilité ascendante : si le nouveau nom n'existe pas,
-# on fallback vers l'ancien nom défini ici.
-# ── Mapping : nom interne → nom EXACT dans le CSV (avec accents) ──
 COLONNES = {
-    # Hiérarchie
     "region":         "Région",
     "departement":    "Département",
     "arrondissement": "Arrondissement",
 
-    # Contacts
     "contact_mairie": "Contact de la mairie",
     "contact_ressource": "Contact de la personne ressource",
 
-    # GPS Commune
     "gps_commune-Latitude":  "_Coordonnées GPS de la commune_latitude",
     "gps_commune-Longitude": "_Coordonnées GPS de la commune_longitude",
     "gps_commune-Altitude":  "_Coordonnées GPS de la commune_altitude",
     "gps_commune-Accuracy":  "_Coordonnées GPS de la commune_precision",
 
-    # Entités principales
     "villages_quartiers": "Villages et quartiers",
     "chefferies":         "Chefferies de la commune",
     "zone_electrifiee":   "La zone est-elle entièrement électrifiée ?",
@@ -83,13 +78,11 @@ COLONNES = {
     "image_carte":        "Photo de la carte de la commune_URL",
     "autres_infos":       "Autres informations pertinentes",
 
-    # Métadonnées KoboCollect
     "kobocollect_uuid":   "_uuid",
     "submitted_by":       "_submitted_by",
     "submission_time":    "_submission_time",
 }
 
-# Types de lieux reconnus (nom interne → type dans MongoDB)
 TYPES_LIEUX = {
     "points_religieux":    "religieux",
     "points_reference":    "reference",
@@ -101,22 +94,7 @@ TYPES_LIEUX = {
 }
 
 
-# ════════════════════════════════════════════════════════════════
-# FONCTIONS UTILITAIRES
-# ════════════════════════════════════════════════════════════════
-
-def nettoyer_valeur(valeur: str) -> str | None:
-    """
-    Nettoie une valeur brute issue du CSV.
-    - Supprime les espaces en debut et fin
-    - Convertit RAS en None
-
-    Args:
-        valeur (str): Valeur brute du CSV.
-
-    Returns:
-        str | None: Valeur nettoyee, ou None si absente.
-    """
+def nettoyer_valeur(valeur: str):
     if not isinstance(valeur, str):
         return None
     valeur = valeur.strip()
@@ -125,64 +103,26 @@ def nettoyer_valeur(valeur: str) -> str | None:
     return valeur
 
 
-def eclater_entites(cellule: str) -> list[str]:
-    """
-    Eclate une cellule contenant plusieurs entites separees par |.
-    Filtre les entites vides ou RAS.
-
-    Args:
-        cellule (str): Contenu brut de la cellule CSV.
-
-    Returns:
-        list[str]: Liste des entites valides.
-    """
+def eclater_entites(cellule: str):
     if not nettoyer_valeur(cellule):
         return []
     entites = [e.strip() for e in cellule.split(SEP_ENTITES)]
     return [e for e in entites if nettoyer_valeur(e)]
 
 
-def eclater_attributs(entite: str) -> list[str | None]:
-    """
-    Eclate une entite en ses attributs separes par ::.
-    Chaque attribut est nettoye (RAS → None).
-
-    Args:
-        entite (str): Entite brute avec attributs.
-
-    Returns:
-        list[str | None]: Liste des attributs nettoyes.
-    """
+def eclater_attributs(entite: str):
     attributs = entite.split(SEP_ATTRIBUTS)
     return [nettoyer_valeur(a) for a in attributs]
 
 
-def eclater_valeurs_multiples(valeur: str) -> list[str]:
-    """
-    Eclate un attribut contenant plusieurs valeurs separees par virgule.
-
-    Args:
-        valeur (str): Valeur brute avec plusieurs entrees.
-
-    Returns:
-        list[str]: Liste des valeurs valides.
-    """
+def eclater_valeurs_multiples(valeur: str):
     if not nettoyer_valeur(valeur):
         return []
     valeurs = [v.strip() for v in valeur.split(SEP_VALEURS)]
     return [v for v in valeurs if nettoyer_valeur(v)]
 
 
-def convertir_float(valeur: str | None) -> float | None:
-    """
-    Convertit une chaine de caracteres en float.
-
-    Args:
-        valeur (str | None): Valeur a convertir.
-
-    Returns:
-        float | None: Valeur convertie ou None.
-    """
+def convertir_float(valeur):
     if not valeur:
         return None
     try:
@@ -192,62 +132,26 @@ def convertir_float(valeur: str | None) -> float | None:
         return None
 
 
-def convertir_bool(valeur: str | None) -> bool:
-    """
-    Convertit une reponse Oui/Non du CSV en booleen Python.
-
-    Args:
-        valeur (str | None): "Oui" ou "Non" issu du CSV.
-
-    Returns:
-        bool: True si "Oui", False sinon.
-    """
+def convertir_bool(valeur):
     if not valeur:
         return False
     return valeur.strip().lower() == "oui"
 
 
 def lire_cellule(ligne: pd.Series, nom_interne: str) -> str:
-    """
-    Lit une cellule en essayant d'abord le nom interne (nouveau format KoboCollect),
-    puis fallback vers l'ancien nom via le dictionnaire COLONNES.
-
-    Args:
-        ligne (pd.Series): Ligne du DataFrame.
-        nom_interne (str): Nom interne clean (ex: "region", "contact_mairie").
-
-    Returns:
-        str: Valeur nettoyée ou chaîne vide.
-    """
-    # 1. Essai avec le nom interne (nouveau format KoboCollect)
     valeur = ligne.get(nom_interne)
 
-    # 2. Fallback vers l'ancien nom si présent dans le mapping
     if pd.isna(valeur) or (isinstance(valeur, str) and valeur.strip() == ""):
         ancien_nom = COLONNES.get(nom_interne)
         if ancien_nom:
             valeur = ligne.get(ancien_nom)
 
-    # 3. Nettoyage standard
     if pd.isna(valeur):
         return ""
     return str(valeur).strip()
 
 
-# ════════════════════════════════════════════════════════════════
-# FONCTIONS DE PARSING PAR TYPE DE CHAMP
-# ════════════════════════════════════════════════════════════════
-
 def parser_contact(cellule: str) -> dict:
-    """
-    Parse un champ contact au format : telephone|mail|code_postal
-
-    Args:
-        cellule (str): Contenu brut du champ contact.
-
-    Returns:
-        dict: Contact structure avec telephones, mails et code_postal.
-    """
     parties = cellule.split(SEP_ENTITES)
     while len(parties) < 3:
         parties.append(VALEUR_ABSENTE)
@@ -260,17 +164,10 @@ def parser_contact(cellule: str) -> dict:
 
 
 def parser_contact_ressource(cellule: str) -> dict:
-    """
-    Parse le champ contact de la personne ressource.
-    Format : nom::role::telephone::mail::code_postal
-
-    Args:
-        cellule (str): Contenu brut du champ personne ressource.
-
-    Returns:
-        dict: Personne ressource structuree.
-    """
-    parties = cellule.split(SEP_ATTRIBUTS)
+    # NOTE : contrairement aux autres champs structures (villages, marches),
+    # celui-ci utilise le meme separateur "/" que les entites, pas "::".
+    # Format reel observe : nom/role/tel/mail[/code_postal]
+    parties = cellule.split(SEP_ENTITES)
     while len(parties) < 5:
         parties.append(VALEUR_ABSENTE)
 
@@ -283,17 +180,7 @@ def parser_contact_ressource(cellule: str) -> dict:
     }
 
 
-def parser_villages_quartiers(cellule: str, id_commune: str) -> list[dict]:
-    """
-    Parse le champ villages/quartiers. Prefixe V:: ou Q::.
-
-    Args:
-        cellule (str): Contenu brut du champ.
-        id_commune (str): ID MongoDB de la commune parente.
-
-    Returns:
-        list[dict]: Liste de documents villages/quartiers.
-    """
+def parser_villages_quartiers(cellule: str, id_commune: str):
     resultats = []
     for entite in eclater_entites(cellule):
         if entite.upper().startswith("V::"):
@@ -304,22 +191,11 @@ def parser_villages_quartiers(cellule: str, id_commune: str) -> list[dict]:
             logger.warning(f"Village/quartier sans prefixe ignore : '{entite}'")
             continue
         if nom:
-            # Signature: make_village_quartier(nom, type_localite, id_commune)
             resultats.append(make_village_quartier(nom, type_localite, id_commune))
     return resultats
 
 
-def parser_chefferies(cellule: str, id_commune: str) -> list[dict]:
-    """
-    Parse le champ chefferies. Format : nom::lat::lng::altitude::precision
-
-    Args:
-        cellule (str): Contenu brut du champ chefferies.
-        id_commune (str): ID MongoDB de la commune parente.
-
-    Returns:
-        list[dict]: Liste de documents chefferies.
-    """
+def parser_chefferies(cellule: str, id_commune: str):
     resultats = []
     for entite in eclater_entites(cellule):
         attributs = eclater_attributs(entite)
@@ -327,7 +203,6 @@ def parser_chefferies(cellule: str, id_commune: str) -> list[dict]:
             attributs.append(None)
         nom = attributs[0]
         if nom:
-            # Signature: make_chefferie(nom, lat, lng, alt, prec, id_commune)
             resultats.append(make_chefferie(
                 nom,
                 convertir_float(attributs[1]),
@@ -339,18 +214,7 @@ def parser_chefferies(cellule: str, id_commune: str) -> list[dict]:
     return resultats
 
 
-def parser_lieux(cellule: str, type_lieu: str, id_commune: str) -> list[dict]:
-    """
-    Parse un champ de lieux. Format : nom::latitude::longitude
-
-    Args:
-        cellule (str): Contenu brut du champ.
-        type_lieu (str): Type du lieu.
-        id_commune (str): ID MongoDB de la commune parente.
-
-    Returns:
-        list[dict]: Liste de documents lieux.
-    """
+def parser_lieux(cellule: str, type_lieu: str, id_commune: str):
     resultats = []
     for entite in eclater_entites(cellule):
         attributs = eclater_attributs(entite)
@@ -358,7 +222,6 @@ def parser_lieux(cellule: str, type_lieu: str, id_commune: str) -> list[dict]:
             attributs.append(None)
         nom = attributs[0]
         if nom:
-            # Signature: make_lieu(nom, type_nom, lat, lng, id_commune)
             resultats.append(make_lieu(
                 nom,
                 type_lieu,
@@ -369,17 +232,7 @@ def parser_lieux(cellule: str, type_lieu: str, id_commune: str) -> list[dict]:
     return resultats
 
 
-def parser_marches(cellule: str, id_commune: str) -> list[dict]:
-    """
-    Parse le champ marches. Format : nom::jour::heure_debut::heure_fin
-
-    Args:
-        cellule (str): Contenu brut du champ marches.
-        id_commune (str): ID MongoDB de la commune parente.
-
-    Returns:
-        list[dict]: Liste de documents jours_marche.
-    """
+def parser_marches(cellule: str, id_commune: str):
     resultats = []
     for entite in eclater_entites(cellule):
         attributs = eclater_attributs(entite)
@@ -387,7 +240,6 @@ def parser_marches(cellule: str, id_commune: str) -> list[dict]:
             attributs.append(None)
         nom = attributs[0]
         if nom:
-            # Signature: make_jour_marche(nom, jour, deb, fin, id_commune)
             resultats.append(make_jour_marche(
                 nom,
                 attributs[1],
@@ -398,29 +250,22 @@ def parser_marches(cellule: str, id_commune: str) -> list[dict]:
     return resultats
 
 
-def parser_liste_simple(cellule: str) -> list[str]:
+def parser_liste_simple(cellule: str):
     """
-    Parse un champ contenant une liste simple d'entites separees par |.
-
-    Args:
-        cellule (str): Contenu brut du champ.
-
-    Returns:
-        list[str]: Liste de valeurs nettoyees.
+    Parse un champ liste simple. Le separateur reel observe varie selon
+    le champ : la plupart utilisent "/" (SEP_ENTITES), mais certains
+    champs Kobo de type "select_multiple" (ex: langues locales) utilisent
+    "," a la place. On tente "/" d'abord ; si une seule "entite" ressort
+    et qu'elle contient une virgule, on retente avec la virgule.
+    A VERIFIER avec le XLSForm si d'autres champs sont dans ce cas.
     """
-    return eclater_entites(cellule)
+    entites = eclater_entites(cellule)
+    if len(entites) == 1 and SEP_VALEURS in entites[0]:
+        return eclater_valeurs_multiples(entites[0])
+    return entites
 
 
-def parser_gare(cellule: str) -> list[dict]:
-    """
-    Parse le champ gare voyageurs. Format : nom::lat::lng
-
-    Args:
-        cellule (str): Contenu brut du champ gare.
-
-    Returns:
-        list[dict]: Liste de gares avec nom et coordonnees.
-    """
+def parser_gare(cellule: str):
     resultats = []
     for entite in eclater_entites(cellule):
         attributs = eclater_attributs(entite)
@@ -437,15 +282,6 @@ def parser_gare(cellule: str) -> list[dict]:
 
 
 def parser_coordonnees_commune(ligne: pd.Series) -> dict:
-    """
-    Lit et structure les coordonnees GPS de la commune.
-
-    Args:
-        ligne (pd.Series): Ligne du DataFrame.
-
-    Returns:
-        dict: Coordonnees GPS {latitude, longitude, altitude, precision}.
-    """
     return {
         "latitude": convertir_float(lire_cellule(ligne, "gps_commune-Latitude")),
         "longitude": convertir_float(lire_cellule(ligne, "gps_commune-Longitude")),
@@ -454,25 +290,7 @@ def parser_coordonnees_commune(ligne: pd.Series) -> dict:
     }
 
 
-# ════════════════════════════════════════════════════════════════
-# FONCTION PRINCIPALE
-# ════════════════════════════════════════════════════════════════
-
-def parser_csv(contenu_fichier: bytes) -> list[dict]:
-    """
-    Fonction principale du module.
-    Lit un fichier CSV KoboCollect et retourne une liste de communes
-    structurees avec toutes leurs donnees associees.
-
-    Args:
-        contenu_fichier (bytes): Contenu brut du fichier CSV uploade.
-
-    Returns:
-        list[dict]: Liste de communes structurees pretes pour l'insertion.
-
-    Raises:
-        ValueError: Si le fichier CSV est vide ou mal forme.
-    """
+def parser_csv(contenu_fichier: bytes):
     logger.info("Debut du parsing du fichier CSV...")
 
     try:
@@ -507,20 +325,6 @@ def parser_csv(contenu_fichier: bytes) -> list[dict]:
 
 
 def _parser_ligne(ligne: pd.Series, numero_ligne: int) -> dict:
-    """
-    Parse une seule ligne du CSV et retourne un dictionnaire structure.
-
-    Args:
-        ligne (pd.Series): Ligne du DataFrame a parser.
-        numero_ligne (int): Numero de la ligne (pour les logs).
-
-    Returns:
-        dict: Structure complete de la commune avec ses sous-documents.
-
-    Raises:
-        ValueError: Si les champs obligatoires sont manquants.
-    """
-    # ── Champs obligatoires ─────────────────────────────────────
     region_nom         = lire_cellule(ligne, "region")
     departement_nom    = lire_cellule(ligne, "departement")
     arrondissement_nom = lire_cellule(ligne, "arrondissement")
@@ -528,17 +332,13 @@ def _parser_ligne(ligne: pd.Series, numero_ligne: int) -> dict:
     if not region_nom or not departement_nom or not arrondissement_nom:
         raise ValueError(f"Champs hierarchiques manquants (Region / Departement / Arrondissement).")
 
-    # ── Nom de la commune ───────────────────────────────────────
     commune_nom = arrondissement_nom
 
-    # ── Contacts ────────────────────────────────────────────────
     contact_mairie = parser_contact(lire_cellule(ligne, "contact_mairie"))
     contact_ressource = parser_contact_ressource(lire_cellule(ligne, "contact_ressource"))
 
-    # ── Coordonnees GPS de la commune ───────────────────────────
     coordonnees = parser_coordonnees_commune(ligne)
 
-    # ── Champs simples de la commune ────────────────────────────
     langues         = parser_liste_simple(lire_cellule(ligne, "langues_locales"))
     delegations     = parser_liste_simple(lire_cellule(ligne, "delegations_ministeres"))
     agriculture     = parser_liste_simple(lire_cellule(ligne, "agriculture_artisanat"))
@@ -549,15 +349,12 @@ def _parser_ligne(ligne: pd.Series, numero_ligne: int) -> dict:
     pays_etrangers  = parser_liste_simple(lire_cellule(ligne, "pays_etrangers"))
     non_connectes   = parser_liste_simple(lire_cellule(ligne, "villages_non_connectes"))
 
-    # ── Gare voyageurs ──────────────────────────────────────────
     gares = parser_gare(lire_cellule(ligne, "gare_voyageurs"))
 
-    # ── Tracabilite KoboCollect ─────────────────────────────────
     uuid            = nettoyer_valeur(lire_cellule(ligne, "kobocollect_uuid"))
     submitted_by    = nettoyer_valeur(lire_cellule(ligne, "submitted_by"))
     submission_time = nettoyer_valeur(lire_cellule(ligne, "submission_time"))
 
-    # ── Sous-documents ──────────────────────────────────────────
     ID_PENDING = "PENDING"
 
     villages = parser_villages_quartiers(lire_cellule(ligne, "villages_quartiers"), ID_PENDING)
@@ -575,12 +372,10 @@ def _parser_ligne(ligne: pd.Series, numero_ligne: int) -> dict:
         for nom in parser_liste_simple(lire_cellule(ligne, "cooperatives"))
     ]
 
-    # ── Lieux (toutes categories) ───────────────────────────────
     lieux = []
     for nom_interne, type_lieu in TYPES_LIEUX.items():
         lieux += parser_lieux(lire_cellule(ligne, nom_interne), type_lieu, ID_PENDING)
 
-    # ── Exercice annuel ─────────────────────────────────────────
     nb_habitants_str = lire_cellule(ligne, "nb_habitants")
     try:
         nb_habitants = int(nb_habitants_str) if nb_habitants_str else None
@@ -593,20 +388,16 @@ def _parser_ligne(ligne: pd.Series, numero_ligne: int) -> dict:
     electrifie = convertir_bool(lire_cellule(ligne, "zone_electrifiee"))
     taux_electrification = 100.0 if electrifie else 0.0
 
-    # Signature exacte de make_exercice :
-    # make_exercice(id_commune, annee, nombre_habitants, taux_electrification,
-    #               taux_connectivite, villages_non_electrifies, besoins_technologiques)
     exercice = make_exercice(
-        ID_PENDING,              # id_commune
-        None,                    # annee
-        nb_habitants,            # nombre_habitants
-        taux_electrification,    # taux_electrification
-        None,                    # taux_connectivite
-        non_electrifies,         # villages_non_electrifies
-        besoins,                 # besoins_technologiques
+        ID_PENDING,
+        None,
+        nb_habitants,
+        taux_electrification,
+        None,
+        non_electrifies,
+        besoins,
     )
 
-    # ── Retour structure complete ────────────────────────────────
     return {
         "hierarchie": {
             "region": region_nom,
