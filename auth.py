@@ -1,114 +1,222 @@
-import  secrets
-import hashlib
-from datetime import datetime, timezone
+"""
+auth.py
+-------
+Gestion de l'authentification et des autorisations de l'application.
+"""
 
-from fastapi import Security, HTTPException, status, Cookie
-from fastapi.security import APIKeyHeader
+import logging
+from datetime import datetime, timedelta, timezone
+
+import bcrypt
+import jwt
+from fastapi import Cookie, Depends, HTTPException, status
+
+from config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_MINUTES
 from database import get_collection, Collections
 
-# 1. CONFIGURATION DU HEADER
-# Cela indique à FastAPI de chercher la clé dans l'en-tête "X-API-Key"
-api_key_header = APIKeyHeader(
-    name="X-API-Key",
-    auto_error=False,  # Permet de ne pas lever une erreur automatiquement(ont la gere nous meme) si la clé est absente
-    description="Clé API pour l'authentification"
-    )
-# 2. GÉNÉRATION ET STOCKAGE DE LA CLÉ API
-def generer_api_key(client_name: str, scopes: list[str] = ["read"]) -> dict:
-    """
-    Génère une clé aléatoire, la hache, et la stocke dans MongoDB.
-    Retourne la clé EN CLAIR une seule fois pour l'administrateur.
-    """
-    # Génère une chaîne aléatoire sécurisée (ex: atlas_live_aB3dE5fG...)
-    raw_key = f"atlas_live_{secrets.token_urlsafe(32)}"
-    
-    # Hachage SHA-256 : on ne stocke JAMAIS la clé en clair dans la BDD
-    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-    
-    # Préfixe pour identification visuelle rapide dans la BDD (ex: atlas_live_aB3)
-    key_prefix = raw_key[:15] 
-    
-    # Document à insérer dans MongoDB
-    doc = {
-        "key_hash": key_hash,
-        "key_prefix": key_prefix,
-        "client_name": client_name,
-        "scopes": scopes,  # ex: ["read"] ou ["read", "write"]
-        "created_at": datetime.now(timezone.utc),
-        "last_used_at": None,
-        "is_active": True,
-    }
-    
-    # Insertion dans la collection api_keys
-    get_collection(Collections.API_KEYS).insert_one(doc)
-    
-    return {
-        "api_key": raw_key,
-        "client_name": client_name,
-        "scopes": scopes,
-        "message": "Conservez cette clé précieusement, elle ne sera plus jamais affichée."
-    }
-    
-    # 3. VÉRIFICATION DE LA CLÉ
-def verifier_api_key(raw_key: str) -> dict | None:
-    """
-    Prend la clé reçue du client, la hache, et cherche une correspondance dans la BDD.
-    """
-    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-    
-    # On cherche une clé active avec cette empreinte digitale
-    doc = get_collection(Collections.API_KEYS).find_one({
-        "key_hash": key_hash,
-        "is_active": True
-    })
-    
-    if doc:
-        # Mise à jour de la date de dernière utilisation (utile pour l'audit)
-        get_collection(Collections.API_KEYS).update_one(
-            {"_id": doc["_id"]},
-            {"$set": {"last_used_at": datetime.now(timezone.utc)}}
-        )
-    
-    return doc
+logger = logging.getLogger(__name__)
 
-# 4. DÉPENDANCE FASTAPI (Le garde de sécurité)
-async def valider_api_key(
-    api_key_from_header: str = Security(api_key_header),
-    atlas_session: str | None = Cookie(default=None)
+# ════════════════════════════════════════════════════════════════
+# MOTS DE PASSE
+# ════════════════════════════════════════════════════════════════
+
+def hacher_mot_de_passe(mot_de_passe: str) -> str:
+    """
+    Hache un mot de passe en clair pour stockage en base de donnees.
+
+    Args:
+        mot_de_passe (str): Mot de passe fourni par l'utilisateur.
+
+    Returns:
+        str: Hash bcrypt du mot de passe (jamais le mot de passe en clair).
+    """
+    hash_bytes = bcrypt.hashpw(mot_de_passe.encode("utf-8"), bcrypt.gensalt())
+    return hash_bytes.decode("utf-8")
+
+
+def verifier_mot_de_passe(mot_de_passe: str, hash_stocke: str) -> bool:
+    """
+    Compare un mot de passe en clair a un hash stocke en base.
+
+    Args:
+        mot_de_passe (str): Mot de passe saisi lors du login.
+        hash_stocke (str): Hash bcrypt recupere depuis la collection users.
+
+    Returns:
+        bool: True si le mot de passe correspond, False sinon.
+    """
+    return bcrypt.checkpw(mot_de_passe.encode("utf-8"), hash_stocke.encode("utf-8"))
+
+# ════════════════════════════════════════════════════════════
+# AUTHENTIFICATION + JWT
+# ════════════════════════════════════════════════════════════
+
+def authentifier_utilisateur(username: str, password: str) -> dict | None:
+    """
+    Vérifie les identifiants et retourne l'utilisateur si valide.
+
+    Args:
+        username: Nom d'utilisateur saisi.
+        password: Mot de passe en clair.
+
+    Returns:
+        dict: Document utilisateur (sans le mot de passe haché) ou None.
+    """
+    collection = get_collection(Collections.USERS)
+    utilisateur = collection.find_one({"username": username})
+
+    if not utilisateur:
+        return None
+
+    if not verifier_mot_de_passe(password, utilisateur["hashed_password"]):
+        return None
+
+    # On retourne l'utilisateur sans le hash pour sécurité
+    return {
+        "username": utilisateur["username"],
+        "role": utilisateur["role"],
+        "created_at": utilisateur.get("created_at"),
+    }
+
+
+def creer_token_session(username: str, role: str) -> str:
+    """
+    Génère un JWT de session pour un utilisateur authentifié.
+
+    Args:
+        username: Nom d'utilisateur.
+        role: Rôle de l'utilisateur (ex: "admin").
+
+    Returns:
+        str: Token JWT encodé.
+    """
+    expire = datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES)
+
+    payload = {
+        "sub": username,                    # subject = identifiant utilisateur
+        "role": role,                       # rôle pour les vérifications d'accès
+        "exp": expire,                      # date d'expiration
+        "iat": datetime.now(timezone.utc),  # date d'émission
+        "type": "session",                  # marqueur pour distinguer d'autres tokens
+    }
+
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def decoder_token_session(token: str) -> dict | None:
+    """
+    Décode et valide un token JWT de session.
+
+    Args:
+        token: Token JWT reçu du cookie.
+
+    Returns:
+        dict: Payload du token si valide, None sinon.
+    """
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+
+        # Vérification supplémentaire : s'assurer que c'est bien un token de session
+        if payload.get("type") != "session":
+            return None
+
+        return payload
+
+    except jwt.ExpiredSignatureError:
+        logger.warning("Token JWT expiré.")
+        return None
+    except jwt.InvalidTokenError as e:
+        logger.warning(f"Token JWT invalide : {e}")
+        return None
+    # ════════════════════════════════════════════════════════════
+# DÉPENDANCES FASTAPI (AUTH & AUTORISATION)
+# ════════════════════════════════════════════════════════════
+
+def get_utilisateur_courant(
+    session_token: str = Cookie(None, alias="atlas_session")
 ) -> dict:
     """
-    Valide l'authentification en acceptant soit le header X-API-Key (mobile/scripts),
-    soit le cookie atlas_session (dashboard web).
+    Extrait et valide le token JWT depuis le cookie de session.
+    Retourne les infos de l'utilisateur connecté ou lève une erreur 401.
+
+    Args:
+        session_token: Valeur du cookie atlas_session.
+
+    Returns:
+        dict: Informations de l'utilisateur connecté.
+
+    Raises:
+        HTTPException 401: Si le token est absent, expiré ou invalide.
     """
-    # On prend le header en priorité, sinon on prend le cookie
-    raw_key = api_key_from_header or atlas_session
-    
-    if not raw_key:
+    if not session_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentification requise. Clé API ou session manquante."
+            detail="Session manquante. Veuillez vous connecter.",
+            headers={"WWW-Authenticate": "Cookie"},
         )
+
+    payload = decoder_token_session(session_token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session invalide ou expirée.",
+            headers={"WWW-Authenticate": "Cookie"},
+        )
+
+    # Pour l'instant, on fait confiance au payload signé par JWT_SECRET.
+    # On pourrait ajouter une vérification en base si besoin plus tard.
+    return {
+        "username": payload["sub"],
+        "role": payload["role"],
+    }
+
+def get_utilisateur_optionnel(
+    session_token: str = Cookie(None, alias="atlas_session")
+) -> dict | None:
+    """
+    Version "douce" de get_utilisateur_courant : ne leve JAMAIS d'erreur.
+
+    Utile pour les routes publiques qui doivent simplement s'adapter selon
+    qu'un visiteur est connecte ou non (ex: /api/me pour savoir si on
+    affiche le bouton d'import), sans bloquer l'acces des visiteurs
+    anonymes qui representent la majorite du trafic du site.
+
+    Args:
+        session_token: Valeur du cookie atlas_session (peut etre absent).
+
+    Returns:
+        dict | None: Informations de l'utilisateur (username, role) si la
+            session est valide, None si absente, expiree ou invalide.
+    """
+    if not session_token:
+        return None
+
+    payload = decoder_token_session(session_token)
+    if not payload:
+        return None
+
+    return {
+        "username": payload["sub"],
+        "role": payload["role"],
+    }
     
-    doc = verifier_api_key(raw_key)
-    if not doc:
+def exiger_admin(utilisateur: dict = Depends(get_utilisateur_courant)) -> dict:
+    """
+    Dépendance qui vérifie que l'utilisateur connecté a le rôle 'admin'.
+    À utiliser dans les routes sensibles (ex: /import).
+
+    Args:
+        utilisateur: Résultat injecté par get_utilisateur_courant.
+
+    Returns:
+        dict: L'utilisateur si admin.
+
+    Raises:
+        HTTPException 403: Si l'utilisateur n'est pas admin.
+    """
+    if utilisateur.get("role") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Clé API invalide, expirée ou révoquée."
+            detail="Accès réservé aux administrateurs.",
         )
-    
-    return doc # Retourne les infos du client (nom, scopes, etc.)
-
-# 5. VÉRIFICATION DES PERMISSIONS (Scopes)
-def require_scope(scope_requis: str):
-    """
-    Factory qui vérifie en plus que le client a la permission spécifique.
-    Utilisation dans main.py : Depends(require_scope("write"))
-    """
-    async def _verifier(client: dict = Security(valider_api_key)):
-        if scope_requis not in client.get("scopes", []):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Votre clé n'a pas la permission '{scope_requis}'."
-            )
-        return client
-    return _verifier
+    return utilisateur

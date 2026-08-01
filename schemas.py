@@ -381,37 +381,3 @@ class SyncChangesResponse(BaseModel):
 class SyncFullResponse(BaseModel):
     server_time: str = Field(description="Timestamp ISO 8601 actuel du serveur", examples=["2026-06-03T14:30:00+00:00"])
     data: dict[str, list[dict]] = Field(description="Integralite des donnees par collection")
-
-
-# ════════════════════════════════════════════════════════════════
-# AUTHENTIFICATION — API KEYS
-# ════════════════════════════════════════════════════════════════
-
-class APIKeyCreateRequest(BaseModel):
-    """Corps de la requete pour creer une cle API"""
-    nom: str = Field(description="Nom descriptif du client", examples=["App Mobile v1", "Partenaire MINTP"])
-
-class APIKeyCreateResponse(BaseModel):
-    """Reponse apres creation d'une cle API (cle en clair, affichee une seule fois)"""
-    key: str = Field(description="Cle API en clair — A COPIER IMMEDIATEMENT", examples=["ak_aBcDeFgHiJkLmNoPqRsTuVwXyZ012345678"])
-    key_prefix: str = Field(description="Prefixe pour identification", examples=["ak_aBcDeFgHi"])
-    nom: str = Field(description="Nom du client", examples=["App Mobile v1"])
-    id: str = Field(description="Identifiant MongoDB de la cle")
-    message: str = Field(
-        default="Cle creee avec succes. Conservez-la precieusement, elle ne sera plus affichee.",
-        description="Message d'avertissement"
-    )
-
-class APIKeyListItem(BaseModel):
-    """Element de la liste des cles API (sans le hash)"""
-    id: str = Field(description="Identifiant MongoDB")
-    key_prefix: str = Field(description="Prefixe de la cle", examples=["ak_aBcDeFgHi"])
-    nom: str = Field(description="Nom du client", examples=["App Mobile v1"])
-    active: bool = Field(description="Cle active ou revoquee", examples=[True])
-    created_at: Optional[str] = Field(default=None, description="Date de creation ISO 8601")
-    last_used_at: Optional[str] = Field(default=None, description="Derniere utilisation ISO 8601")
-
-class APIKeyListResponse(BaseModel):
-    """Liste des cles API enregistrees"""
-    total: int = Field(description="Nombre total de cles", examples=[3])
-    api_keys: List[APIKeyListItem]

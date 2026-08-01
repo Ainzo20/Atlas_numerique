@@ -9,7 +9,7 @@ reference pour la construction des documents avant insertion.
 
 Aucune logique metier ici — uniquement les structures.
 """
-
+from datetime import datetime, timezone
 
 def make_region(nom: str) -> dict:
     """
@@ -347,4 +347,29 @@ def make_exercice(
         "taux_connectivite": taux_connectivite,
         "villages_non_electrifies": villages_non_electrifies,
         "besoins_technologiques": besoins_technologiques,
+    }
+def make_user(
+    username: str,
+    hashed_password: str,
+    role: str = "admin",
+) -> dict:
+    """
+    Construit un document Utilisateur pour la collection users.
+
+    Args:
+        username (str): Nom d'identifiant unique de l'utilisateur.
+        hashed_password (str): Hash bcrypt du mot de passe en clair.
+        role (str): Rôle système attribué à l'utilisateur.
+            Par défaut "admin" pour le premier compte créé.
+
+    Returns:
+        dict: Document prêt à être inséré dans la collection users.
+    """
+
+    return {
+        "username": username,
+        "hashed_password": hashed_password,
+        "role": role,
+        "is_active": True,  # Permettra de désactiver un compte sans le supprimer
+        "created_at": datetime.now(timezone.utc),
     }

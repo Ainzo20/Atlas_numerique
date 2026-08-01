@@ -116,16 +116,13 @@ class Collections:
     TYPES            = "types"
     SOUS_TYPES       = "sous_types"
     TYPES_COMMUNE    = "types_commune"
-    API_KEYS         = "api_keys"
+    USERS            = "users"
 
 # ════════════════════════════════════════════════════════════════
 # FONCTIONS D'INSERTION ET DE RECHERCHE
 # Ces fonctions gerent la logique d'ecriture dans MongoDB.
 # Elles sont appelees par main.py apres le parsing du CSV.
 # ════════════════════════════════════════════════════════════════
-
-from bson import ObjectId
-
 
 def trouver_ou_creer(
     collection_nom: str,

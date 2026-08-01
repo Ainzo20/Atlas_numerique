@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// auth.js — Gestion de l'authentification par API Key
+// auth.js — Gestion de l'authentification par JWT Cookie
 // Atlas Numérique du Cameroun
 // ═══════════════════════════════════════════════════════════════
 
@@ -8,213 +8,221 @@ const AtlasAuth = (function() {
 
     // Configuration
     const CONFIG = {
-        STORAGE_KEY: 'atlas_api_key',
-        LOGIN_URL: '/login',
-        API_BASE_URL: '' // URL de base de l'API (vide si même domaine)
+        API_BASE: '', // Vide = même origine
+        ENDPOINTS: {
+            LOGIN: '/api/login',
+            LOGOUT: '/api/logout',
+            ME: '/api/me'
+        },
+        SELECTORS: {
+            ADMIN_MENU: '[data-page="import"]',
+            LOGIN_FORM: '#loginForm',
+            LOGIN_ERROR: '#loginError'
+        }
     };
 
     // ═══════════════════════════════════════════════════════════
-    // GESTION DE LA CLÉ API
+    // ÉTAT D'AUTHENTIFICATION (géré côté serveur via cookie)
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * Récupère la clé API depuis le stockage local
-     * @returns {string|null} La clé API ou null si absente
+     * Vérifie la session active via l'endpoint /api/me
+     * @returns {Promise<Object>} { authentifie: bool, est_admin: bool, username?: string }
      */
-    function getApiKey() {
+    async function checkSession() {
         try {
-            return localStorage.getItem(CONFIG.STORAGE_KEY);
-        } catch (error) {
-            console.error('Erreur lors de la lecture de la clé API:', error);
-            return null;
+            const res = await fetch(`${CONFIG.API_BASE}${CONFIG.ENDPOINTS.ME}`, {
+                credentials: 'include' // Envoie le cookie atlas_session
+            });
+            if (!res.ok) return { authentifie: false, est_admin: false };
+            return await res.json();
+        } catch {
+            return { authentifie: false, est_admin: false };
         }
     }
 
     /**
-     * Sauvegarde la clé API dans le stockage local
-     * @param {string} key - La clé API à sauvegarder
+     * Affiche/masque le menu admin selon le rôle
+     * @param {boolean} isAdmin - True si l'utilisateur est admin
      */
-    function setApiKey(key) {
+    function toggleAdminMenu(isAdmin) {
+        document.querySelectorAll('[data-page="import"], #btnImportDashboard, #btnLogout').forEach(el => {
+            el.style.display = isAdmin ? (el.tagName === 'A' ? 'flex' : 'inline-flex') : 'none';
+        });
+        const btnLogin = document.getElementById('btnLogin');
+        if (btnLogin) btnLogin.style.display = isAdmin ? 'none' : 'flex';
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // LOGIN / LOGOUT
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Soumet les identifiants vers /api/login
+     * @param {string} username 
+     * @param {string} password 
+     * @returns {Promise<boolean>} True si succès, False sinon
+     */
+    async function login(username, password) {
+        const formData = new FormData();
+        formData.append('username', username);
+        formData.append('password', password);
+
         try {
-            if (key && typeof key === 'string') {
-                localStorage.setItem(CONFIG.STORAGE_KEY, key);
+            const res = await fetch(`${CONFIG.API_BASE}${CONFIG.ENDPOINTS.LOGIN}`, {
+                method: 'POST',
+                body: formData,
+                credentials: 'include' // Reçoit le cookie atlas_session
+            });
+
+            if (res.ok) {
+                // Le backend dépose le cookie et retourne 200/302
+                return true;
+            } else {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Identifiants incorrects');
             }
         } catch (error) {
-            console.error('Erreur lors de la sauvegarde de la clé API:', error);
+            console.error('Login error:', error);
+            throw error;
         }
     }
 
     /**
-     * Supprime la clé API (déconnexion)
+     * Déconnecte l'utilisateur via /api/logout
+     * @returns {Promise<void>}
      */
-    function clearApiKey() {
+    async function logout() {
         try {
-            localStorage.removeItem(CONFIG.STORAGE_KEY);
+            await fetch(`${CONFIG.API_BASE}${CONFIG.ENDPOINTS.LOGOUT}`, {
+                method: 'POST',
+                credentials: 'include'
+            });
         } catch (error) {
-            console.error('Erreur lors de la suppression de la clé API:', error);
+            console.error('Logout error:', error);
         }
-    }
-
-    /**
-     * Vérifie si l'utilisateur est authentifié
-     * @returns {boolean} True si une clé API est présente
-     */
-    function isAuthenticated() {
-        const key = getApiKey();
-        return key !== null && key.length > 0;
     }
 
     // ═══════════════════════════════════════════════════════════
     // INTERCEPTION DES REQUÊTES FETCH
     // ═══════════════════════════════════════════════════════════
 
-    // Sauvegarde de la fonction fetch originale
     const originalFetch = window.fetch;
 
     /**
-     * Redéfinit la fonction fetch pour ajouter automatiquement le header X-API-Key
-     * et gérer les erreurs d'authentification
+     * Redéfinit fetch pour :
+     * 1. Ajouter credentials: 'include' par défaut (pour les cookies)
+     * 2. Gérer les erreurs 401/403 sur les routes protégées
      */
     window.fetch = async function(url, options = {}) {
-        // Initialiser les headers si absents
-        if (!options.headers) {
-            options.headers = {};
-        }
-
-        // Convertir Headers en objet si nécessaire
-        if (options.headers instanceof Headers) {
-            const headersObj = {};
-            options.headers.forEach((value, key) => {
-                headersObj[key] = value;
-            });
-            options.headers = headersObj;
-        }
-
-        // Ajouter la clé API si elle existe et si le header n'est pas déjà défini
-        const apiKey = getApiKey();
-        if (apiKey && !options.headers['X-API-Key']) {
-            options.headers['X-API-Key'] = apiKey;
+        // Par défaut, inclure les cookies pour les appels API
+        if (!options.credentials && url.startsWith('/api')) {
+            options.credentials = 'include';
         }
 
         try {
             const response = await originalFetch(url, options);
 
-            // Si 401 ou 403, rediriger vers la page de connexion
-            if (response.status === 401 || response.status === 403) {
-                console.warn('Authentification requise ou échouée. Redirection vers /login');
-                clearApiKey();
+            // Si 401/403 sur une route API, déconnecter et afficher un message
+            if ((response.status === 401 || response.status === 403) && url.includes('/api/')) {
+                console.warn(`Auth error on ${url}: ${response.status}`);
                 
-                // Ne pas rediriger si on est déjà sur la page de login
-                if (window.location.pathname !== CONFIG.LOGIN_URL) {
-                    // Afficher un message avant la redirection
-                    const message = response.status === 401 
-                        ? 'Session expirée. Veuillez vous reconnecter.'
-                        : 'Accès refusé. Veuillez vérifier vos permissions.';
-                    
-                    // Stocker le message pour l'afficher après redirection
-                    sessionStorage.setItem('login_message', JSON.stringify({
+                // Ne pas boucler si on est déjà sur /login
+                if (window.location.pathname !== '/login') {
+                    sessionStorage.setItem('auth_error', JSON.stringify({
                         type: 'error',
-                        text: message
+                        text: response.status === 401 
+                            ? 'Session expirée. Veuillez vous reconnecter.'
+                            : 'Accès refusé.'
                     }));
-                    
-                    window.location.href = CONFIG.LOGIN_URL;
+                    // Optionnel : recharger pour masquer le menu admin
+                    window.location.href = '/login';
                 }
             }
 
             return response;
         } catch (error) {
-            console.error('Erreur réseau:', error);
+            console.error('Fetch error:', error);
             throw error;
         }
     };
 
     // ═══════════════════════════════════════════════════════════
-    // PROTECTION DES PAGES
+    // UTILITAIRES D'INTERFACE
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * Vérifie l'authentification au chargement de la page
-     * À appeler au début de chaque page protégée
-     * @returns {boolean} True si authentifié, sinon redirige vers /login
-     */
-    function requireAuth() {
-        if (!isAuthenticated()) {
-            console.log('Non authentifié. Redirection vers /login');
-            window.location.href = CONFIG.LOGIN_URL;
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * Affiche les informations de l'utilisateur connecté
-     * Cherche un élément avec l'id 'user-info' et y affiche le préfixe de la clé
-     */
-    function displayUserInfo() {
-        const apiKey = getApiKey();
-        if (apiKey) {
-            const prefix = apiKey.substring(0, 20) + '...';
-            const userInfoElement = document.getElementById('user-info');
-            if (userInfoElement) {
-                userInfoElement.textContent = `Connecté : ${prefix}`;
-            }
-        }
-    }
-
-    /**
-     * Gère la déconnexion
-     * Efface la clé et redirige vers la page de connexion
-     */
-    function logout() {
-        if (confirm('Voulez-vous vraiment vous déconnecter ?')) {
-            clearApiKey();
-            window.location.href = CONFIG.LOGIN_URL;
-        }
-    }
-
-    /**
-     * Affiche un message stocké en session (après redirection depuis une autre page)
-     * À appeler sur la page de login
-     */
-    function displaySessionMessage() {
-        const messageData = sessionStorage.getItem('login_message');
-        if (messageData) {
-            try {
-                const { type, text } = JSON.parse(messageData);
-                
-                // Attendre que le DOM soit prêt
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', () => {
-                        showMessage(type, text);
-                    });
-                } else {
-                    showMessage(type, text);
-                }
-                
-                sessionStorage.removeItem('login_message');
-            } catch (error) {
-                console.error('Erreur lors de l\'affichage du message:', error);
-            }
-        }
-    }
-
-    /**
-     * Affiche un message sur la page de login
-     * @param {string} type - Type de message ('error', 'success', 'info')
-     * @param {string} text - Texte du message
+     * Affiche un message d'erreur ou de succès sur le formulaire de login
+     * @param {string} type - 'error' | 'success' | 'info'
+     * @param {string} text - Message à afficher
      */
     function showMessage(type, text) {
-        const messageDiv = document.getElementById('message');
-        if (messageDiv) {
-            const icons = {
-                error: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
-                success: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
-                info: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
-            };
-
-            messageDiv.className = `login-message ${type} show`;
-            messageDiv.innerHTML = `${icons[type] || ''}<span>${text}</span>`;
+        const el = document.querySelector(CONFIG.SELECTORS.LOGIN_ERROR);
+        if (el) {
+            el.textContent = text;
+            el.style.display = type === 'error' ? 'block' : 'none';
+            el.className = `login-message ${type}`;
         }
+    }
+
+    /**
+     * Affiche un message stocké en session après redirection
+     */
+    function displaySessionMessage() {
+        const raw = sessionStorage.getItem('auth_error');
+        if (raw) {
+            try {
+                const { type, text } = JSON.parse(raw);
+                showMessage(type, text);
+            } catch (e) {
+                console.error('Failed to parse session message', e);
+            } finally {
+                sessionStorage.removeItem('auth_error');
+            }
+        }
+    }
+
+    /**
+     * Initialise le gestionnaire de formulaire de login
+     */
+    function bindLoginForm() {
+        const form = document.querySelector(CONFIG.SELECTORS.LOGIN_FORM);
+        if (!form) return;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = form.querySelector('button[type="submit"]');
+            const username = form.querySelector('[name="username"]')?.value.trim();
+            const password = form.querySelector('[name="password"]')?.value;
+
+            if (!username || !password) {
+                showMessage('error', 'Veuillez remplir tous les champs');
+                return;
+            }
+
+            // UI loading state
+            if (btn) {
+                btn.disabled = true;
+                btn.dataset.originalText = btn.textContent;
+                btn.textContent = 'Connexion...';
+            }
+            showMessage('info', '');
+
+            try {
+                const success = await login(username, password);
+                if (success) {
+                    // Redirection vers l'accueil après login réussi
+                    window.location.href = '/';
+                }
+            } catch (error) {
+                showMessage('error', error.message || 'Échec de connexion');
+            } finally {
+                if (btn && btn.dataset.originalText) {
+                    btn.disabled = false;
+                    btn.textContent = btn.dataset.originalText;
+                }
+            }
+        });
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -222,20 +230,41 @@ const AtlasAuth = (function() {
     // ═══════════════════════════════════════════════════════════
 
     return {
-        getApiKey,
-        setApiKey,
-        clearApiKey,
-        isAuthenticated,
-        requireAuth,
-        displayUserInfo,
+        // État
+        checkSession,
+        toggleAdminMenu,
+        
+        // Actions
+        login,
         logout,
+        
+        // UI
+        showMessage,
         displaySessionMessage,
-        showMessage
+        bindLoginForm,
+        
+        // Config (pour débogage ou extension)
+        CONFIG
     };
 
 })();
 
-// Afficher les messages de session au chargement de la page de login
+// ═══════════════════════════════════════════════════════════════
+// INITIALISATION AUTOMATIQUE
+// ═══════════════════════════════════════════════════════════════
+
+// Au chargement de la page de login : afficher les messages session + binder le form
 if (window.location.pathname === '/login') {
-    AtlasAuth.displaySessionMessage();
+    document.addEventListener('DOMContentLoaded', () => {
+        AtlasAuth.displaySessionMessage();
+        AtlasAuth.bindLoginForm();
+    });
+}
+
+// Sur les autres pages : vérifier la session au chargement pour afficher/masquer le menu admin
+if (window.location.pathname !== '/login') {
+    document.addEventListener('DOMContentLoaded', async () => {
+        const session = await AtlasAuth.checkSession();
+        AtlasAuth.toggleAdminMenu(session.est_admin);
+    });
 }

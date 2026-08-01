@@ -41,3 +41,6 @@ def get_env_variable(name: str, required: bool = True) -> str:
 # ── Variables exposees ──────────────────────────────────────────
 MONGODB_URI: str = get_env_variable("MONGODB_URI")
 MONGODB_DB: str  = get_env_variable("MONGODB_DB")
+JWT_SECRET: str = get_env_variable("JWT_SECRET")
+JWT_ALGORITHM: str = "HS256"  # Algorithme de signature pour JWT
+JWT_EXPIRE_MINUTES: int = int(get_env_variable("JWT_EXPIRE_MINUTES", required=False) or 480)  # Valeur par defaut : 480 minutes

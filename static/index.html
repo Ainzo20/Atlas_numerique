@@ -12,7 +12,7 @@
 </head>
 <body>
 <!-- Charger auth.js EN PREMIER -->
-<script src="/static/app.js"></script>
+<script src="/static/auth.js"></script>
 <script>feather.replace()</script>
 
   <!-- ═══════════════════════════════════
@@ -36,8 +36,11 @@
       <a class="nav-item active" data-page="dashboard" onclick="naviguer('dashboard')">
         <i data-feather="grid"></i> Tableau de bord
       </a>
-      <a class="nav-item" data-page="import" onclick="naviguer('import')">
+      <a class="nav-item" data-page="import" style="display:none" onclick="naviguer('import')">
         <i data-feather="upload"></i> Importer CSV
+      </a>
+      <a class="nav-item" id="btnLogout" style="display:none" onclick="AtlasAuth.logout().then(() => window.location.href='/')">
+        <i data-feather="log-out"></i> Déconnexion
       </a>
       <a class="nav-item" data-page="regions" onclick="naviguer('regions')">
         <i data-feather="map"></i> Régions
@@ -75,6 +78,9 @@
       <a class="nav-item" data-page="export" onclick="naviguer('export')">
         <i data-feather="download"></i> Exporter
       </a>
+      <a class="nav-item" id="btnLogin" onclick="window.location.href='/login'">
+        <i data-feather="log-in"></i> Connexion
+      </a>
     </nav>
 
     <div class="sidebar-status" id="statusBar">
@@ -105,7 +111,7 @@
           <h1 class="page-title">Tableau de bord</h1>
           <p class="page-sub">Vue d'ensemble des données importées</p>
         </div>
-        <button class="btn-primary" onclick="naviguer('import')">
+        <button class="btn-primary" id="btnImportDashboard" style="display:none" onclick="naviguer('import')">
           <i data-feather="upload"></i> Importer CSV
         </button>
       </div>

@@ -1389,7 +1389,13 @@ function capitaliser(str) {
 // 17. INITIALISATION
 // ════════════════════════════════════════════════════════════════
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+  // Laisse AtlasAuth gérer l'affichage du menu admin
+  if (typeof AtlasAuth !== 'undefined') {
+    await AtlasAuth.checkSession();
+  }
+  // Puis charge les données métier
   verifierSante();
   chargerDashboard();
+  if (typeof feather !== "undefined") feather.replace();
 });
