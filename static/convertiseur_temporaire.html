@@ -1,0 +1,150 @@
+<!-- convertisseur_temporaire.html — à supprimer après usage -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Convertisseur GeoJSON EPSG:3857 → WGS84</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+    .drop-zone { border: 2px dashed #ccc; border-radius: 8px; padding: 2rem; text-align: center; margin: 1rem 0; }
+    .drop-zone.drag-over { border-color: #3b82f6; background: #eff6ff; }
+    #status { margin-top: 1rem; font-size: 0.9rem; color: #666; }
+    #status.success { color: #16a34a; }
+    #status.error { color: #dc2626; }
+  </style>
+</head>
+<body>
+  <h1>🔄 Convertisseur GeoJSON</h1>
+  <p>Convertit un fichier GeoJSON EPSG:3857 (mètres) → EPSG:4326 (lat/lng)</p>
+  
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fichier" accept=".geojson,.json" style="display:none" />
+    <label for="fichier" style="cursor:pointer;color:#3b82f6;font-weight:500">
+      📁 Choisir un fichier GeoJSON
+    </label>
+    <div style="margin-top:0.5rem;font-size:0.85rem;color:#666">
+      ou glisser-déposer ici
+    </div>
+  </div>
+  
+  <div id="status"></div>
+  <pre id="resultat" style="display:none;max-height:200px;overflow:auto;background:#f9f9f9;padding:0.5rem;border-radius:4px"></pre>
+
+  <script>
+    proj4.defs("EPSG:3857", "+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs");
+
+    // ── Conversion récursive des coordonnées ──────────────────
+    function convertirCoords(coord) {
+      if (typeof coord[0] === "number") {
+        return proj4("EPSG:3857", "EPSG:4326", coord);
+      }
+      return coord.map(convertirCoords);
+    }
+
+    // ── Génération du nom de fichier de sortie ────────────────
+    function genererNomSortie(nomOriginal) {
+      // Retire l'extension
+      const base = nomOriginal.replace(/\.[^.]+$/, "");
+      
+      // Retire les suffixes de projection courants (case-insensitive)
+      const baseNettoye = base.replace(/_(epsg)?3857$/i, "").replace(/_webmercator$/i, "");
+      
+      return `converti_${baseNettoye}.geojson`;
+    }
+
+    // ── Traitement principal ─────────────────────────────────
+    function traiterFichier(file) {
+      const status = document.getElementById("status");
+      const resultat = document.getElementById("resultat");
+      
+      status.textContent = `🔄 Conversion de "${file.name}" en cours...`;
+      status.className = "";
+      resultat.style.display = "none";
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const geojson = JSON.parse(evt.target.result);
+          
+          // Validation basique
+          if (!geojson.type || !geojson.features) {
+            throw new Error("Fichier GeoJSON invalide (propriétés 'type' ou 'features' manquantes)");
+          }
+
+          // Conversion des coordonnées
+          geojson.features.forEach(f => {
+            if (f.geometry?.coordinates) {
+              f.geometry.coordinates = convertirCoords(f.geometry.coordinates);
+            }
+          });
+          
+          // Nettoyage CRS (GeoJSON standard = WGS84 par défaut)
+          delete geojson.crs;
+
+          // Génération du nom de sortie
+          const nomSortie = genererNomSortie(file.name);
+
+          // Téléchargement
+          const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: "application/json" });
+          const lien = document.createElement("a");
+          lien.href = URL.createObjectURL(blob);
+          lien.download = nomSortie;
+          document.body.appendChild(lien);
+          lien.click();
+          document.body.removeChild(lien);
+          URL.revokeObjectURL(lien.href);
+
+          status.textContent = `✅ "${nomSortie}" téléchargé avec succès !`;
+          status.className = "success";
+          
+          // Optionnel : afficher un aperçu du résultat
+          // resultat.textContent = JSON.stringify(geojson, null, 2).slice(0, 500) + "...";
+          // resultat.style.display = "block";
+
+        } catch (err) {
+          status.textContent = `❌ Erreur : ${err.message}`;
+          status.className = "error";
+          console.error(err);
+        }
+      };
+      
+      reader.onerror = () => {
+        status.textContent = "❌ Erreur de lecture du fichier";
+        status.className = "error";
+      };
+      
+      reader.readAsText(file);
+    }
+
+    // ── Gestionnaires d'événements ───────────────────────────
+    const input = document.getElementById("fichier");
+    const dropZone = document.getElementById("dropZone");
+
+    input.addEventListener("change", (e) => {
+      if (e.target.files[0]) traiterFichier(e.target.files[0]);
+    });
+
+    // Drag & Drop
+    ["dragenter", "dragover", "dragleave", "drop"].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+    });
+
+    ["dragenter", "dragover"].forEach(eventName => {
+      dropZone.addEventListener(eventName, () => dropZone.classList.add("drag-over"));
+    });
+
+    ["dragleave", "drop"].forEach(eventName => {
+      dropZone.addEventListener(eventName, () => dropZone.classList.remove("drag-over"));
+    });
+
+    dropZone.addEventListener("drop", (e) => {
+      const file = e.dataTransfer.files[0];
+      if (file) traiterFichier(file);
+    });
+  </script>
+</body>
+</html>

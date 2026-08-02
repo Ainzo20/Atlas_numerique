@@ -21,7 +21,31 @@
  * 17. Initialisation
  */
 
+import { enregistrerRoute, naviguerVers, initRouter } from "./core/router.js";
+import { initSidebar, mettreAJourLienActif } from "./components/sidebar.js";
+import { afficherPageCarte } from "./pages/carte-page.js";
+import {
+  afficherPageRegions, afficherPageCommunes, afficherPageVillages, afficherPageLieux,
+  afficherPageChefferies, afficherPageMarches, afficherPageEthnies,
+  afficherPageCooperatives, afficherPageExercices,
+} from "./pages/pages-tableau.js";
 
+enregistrerRoute("/", afficherPageCarte);
+enregistrerRoute("/regions", afficherPageRegions);
+enregistrerRoute("/communes", afficherPageCommunes);
+enregistrerRoute("/villages", afficherPageVillages);
+enregistrerRoute("/lieux", afficherPageLieux);
+enregistrerRoute("/chefferies", afficherPageChefferies);
+enregistrerRoute("/marches", afficherPageMarches);
+enregistrerRoute("/ethnies", afficherPageEthnies);
+enregistrerRoute("/cooperatives", afficherPageCooperatives);
+enregistrerRoute("/exercices", afficherPageExercices);
+
+initSidebar();
+initRouter();
+
+// Met a jour le lien actif de la sidebar a chaque navigation
+window.addEventListener("popstate", mettreAJourLienActif);
 // ════════════════════════════════════════════════════════════════
 // 1. CONFIGURATION
 // ════════════════════════════════════════════════════════════════

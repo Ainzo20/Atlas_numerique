@@ -1,0 +1,76 @@
+/* ═══════════════════════════════════════════════════════════════
+   base.css — Atlas Numérique du Cameroun
+   Variables, reset, typographie de base
+═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Fonds */
+  --bg:        #0a0f1e;
+  --bg-2:      #0f1628;
+  --bg-3:      #151d35;
+  --bg-4:      #1a2340;
+
+  /* Bordures */
+  --border:      #1e2d50;
+  --border-light:#2a3d6a;
+
+  /* Couleurs Cameroun */
+  --green:       #007A5E;
+  --green-light: #00a07a;
+  --green-dim:   rgba(0, 122, 94, 0.15);
+  --red:         #CE1126;
+  --red-light:   #e8162c;
+  --red-dim:     rgba(206, 17, 38, 0.15);
+  --yellow:      #FCD116;
+  --yellow-light:#fde04d;
+  --yellow-dim:  rgba(252, 209, 22, 0.15);
+
+  /* Texte */
+  --text:        #CBD5E1;
+  --text-2:      #8899B4;
+  --text-3:      #4a5a78;
+
+  /* Utilitaires */
+  --radius:    8px;
+  --radius-lg: 14px;
+  --shadow:    0 8px 32px rgba(0,0,0,0.4);
+  --sidebar-w: 250px;
+  --transition:0.2s ease;
+
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body:    'Inter', sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; cursor: pointer; }
+
+button { cursor: pointer; font-family: var(--font-body); }
+
+body { display: block; min-height: 100vh; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}

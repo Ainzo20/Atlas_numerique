@@ -46,11 +46,10 @@ const AtlasAuth = (function() {
      * @param {boolean} isAdmin - True si l'utilisateur est admin
      */
     function toggleAdminMenu(isAdmin) {
-        document.querySelectorAll('[data-page="import"], #btnImportDashboard, #btnLogout').forEach(el => {
-            el.style.display = isAdmin ? (el.tagName === 'A' ? 'flex' : 'inline-flex') : 'none';
-        });
-        const btnLogin = document.getElementById('btnLogin');
-        if (btnLogin) btnLogin.style.display = isAdmin ? 'none' : 'flex';
+        // Delegue a ui-state.js qui gere maintenant la topbar dynamiquement
+        if (typeof window.updateUIForAuthState === "function") {
+            window.updateUIForAuthState({ est_admin: isAdmin });
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -265,6 +264,8 @@ if (window.location.pathname === '/login') {
 if (window.location.pathname !== '/login') {
     document.addEventListener('DOMContentLoaded', async () => {
         const session = await AtlasAuth.checkSession();
-        AtlasAuth.toggleAdminMenu(session.est_admin);
+        if (typeof window.updateUIForAuthState === "function") {
+            window.updateUIForAuthState(session);
+        }
     });
 }

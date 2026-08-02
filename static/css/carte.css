@@ -1,0 +1,142 @@
+.carte-plein-ecran {
+    position: fixed;
+    top: 64px;
+    left: var(--sidebar-w);
+    right: 0;
+    bottom: 0;
+    border-radius: 0;
+  }
+/* ══════════════════════════════════════════════════════════════
+   TOOLTIPS CARTE
+══════════════════════════════════════════════════════════════ */
+
+.leaflet-tooltip-custom {
+    background: var(--bg-2) !important;
+    border: 1px solid var(--border-light) !important;
+    border-radius: var(--radius) !important;
+    color: var(--text) !important;
+    font-family: var(--font-body) !important;
+    font-size: 1rem !important;        /* était 0.8rem — augmente ici */
+    padding: 0.85rem 1.1rem !important; /* était 0.5rem 0.75rem — plus d'espace */
+    box-shadow: var(--shadow) !important;
+    min-width: 160px;                    /* optionnel : force une largeur minimale */
+  }
+  
+  .leaflet-tooltip-custom::before {
+    border-top-color: var(--border-light) !important;
+  }
+  
+  .tooltip-region strong {
+    font-family: var(--font-display);
+    color: var(--green-light);
+    font-size: 1.15rem;                 /* nom de la region plus visible */
+  }
+  
+  .tooltip-meta {
+    color: var(--text-3);
+    font-size: 0.85rem;                  /* était 0.72rem */
+  }
+
+  .leaflet-tooltip-commune {
+    min-width: 180px;
+  }
+  
+  .tooltip-commune strong {
+    font-family: var(--font-display);
+    color: var(--yellow-light);
+    font-size: 1.05rem;
+  }
+  
+  .tooltip-lien {
+    margin-top: 0.5rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid var(--border);
+    color: var(--green-light);
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  
+  .tooltip-lien:hover {
+    color: var(--green);
+    text-decoration: underline;
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+   PANNEAU LATERAL
+══════════════════════════════════════════════════════════════ */
+
+.panneau-lateral {
+    position: fixed;
+    top: 64px;
+    right: 0;
+    width: 420px;
+    max-width: 90vw;
+    height: calc(100vh - 64px);
+    background: var(--bg-2);
+    border-left: 1px solid var(--border-light);
+    box-shadow: -12px 0 40px rgba(0,0,0,0.5);
+    z-index: 1000;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow-y: auto;
+  }
+  
+  .panneau-lateral.ouvert {
+    transform: translateX(0);
+  }
+  
+  .panneau-fermer {
+    position: sticky;
+    top: 1rem;
+    float: right;
+    margin-right: 1rem;
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition);
+    z-index: 1;
+  }
+  
+  .panneau-fermer:hover {
+    background: var(--bg-4);
+    color: var(--text);
+  }
+  
+  .panneau-contenu {
+    padding: 1.5rem;
+    clear: both;
+  }
+
+  .panneau-image {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    border-radius: var(--radius-lg);
+    margin-bottom: 1.25rem;
+  }
+  
+  .panneau-minicarte {
+    width: 100%;
+    height: 140px;
+    border-radius: var(--radius-lg);
+    margin-bottom: 1.25rem;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .modal-section.repliable .modal-section-title {
+    cursor: pointer;
+    justify-content: space-between;
+  }
+  .modal-section.repliable .modal-section-corps {
+    display: none;
+  }
+  .modal-section.repliable.ouvert .modal-section-corps {
+    display: block;
+  }

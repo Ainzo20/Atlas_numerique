@@ -8,458 +8,53 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@600&display=swap" rel="stylesheet" />
   <script src="https://unpkg.com/feather-icons"></script>
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/css/base.css" />
+  <link rel="stylesheet" href="/static/css/layout.css" />
+  <link rel="stylesheet" href="/static/css/composants.css" />
+  <link rel="stylesheet" href="/static/css/carte.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script> 
+  <link rel="stylesheet" href="/static/css/responsive.css" />
 </head>
 <body>
-<!-- Charger auth.js EN PREMIER -->
-<script src="/static/auth.js"></script>
-<script>feather.replace()</script>
 
-  <!-- ═══════════════════════════════════
-       SIDEBAR
-  ═══════════════════════════════════ -->
-  <aside class="sidebar">
-
-    <div class="sidebar-brand">
+  <header class="topbar">
+    <div class="topbar-brand">
       <div class="brand-flag">
-        <span class="flag-green"></span>
-        <span class="flag-red"></span>
-        <span class="flag-yellow"></span>
+        <span class="flag-green"></span><span class="flag-red"></span><span class="flag-yellow"></span>
       </div>
-      <div>
-        <div class="brand-title">Atlas Numérique</div>
-        <div class="brand-sub">du Cameroun</div>
-      </div>
+      <span class="brand-title">Atlas Numérique</span>
     </div>
-
-    <nav class="sidebar-nav">
-      <a class="nav-item active" data-page="dashboard" onclick="naviguer('dashboard')">
-        <i data-feather="grid"></i> Tableau de bord
-      </a>
-      <a class="nav-item" data-page="import" style="display:none" onclick="naviguer('import')">
-        <i data-feather="upload"></i> Importer CSV
-      </a>
-      <a class="nav-item" id="btnLogout" style="display:none" onclick="AtlasAuth.logout().then(() => window.location.href='/')">
-        <i data-feather="log-out"></i> Déconnexion
-      </a>
-      <a class="nav-item" data-page="regions" onclick="naviguer('regions')">
-        <i data-feather="map"></i> Régions
-      </a>
-      <a class="nav-item" data-page="communes" onclick="naviguer('communes')">
-        <i data-feather="home"></i> Communes
-      </a>
-
-      <div class="nav-separator">Données</div>
-
-      <a class="nav-item" data-page="villages" onclick="naviguer('villages')">
-        <i data-feather="map-pin"></i> Villages & Quartiers
-      </a>
-      <a class="nav-item" data-page="lieux" onclick="naviguer('lieux')">
-        <i data-feather="layers"></i> Lieux
-      </a>
-      <a class="nav-item" data-page="chefferies" onclick="naviguer('chefferies')">
-        <i data-feather="shield"></i> Chefferies
-      </a>
-      <a class="nav-item" data-page="marches" onclick="naviguer('marches')">
-        <i data-feather="shopping-bag"></i> Marchés
-      </a>
-      <a class="nav-item" data-page="ethnies" onclick="naviguer('ethnies')">
-        <i data-feather="users"></i> Ethnies
-      </a>
-      <a class="nav-item" data-page="cooperatives" onclick="naviguer('cooperatives')">
-        <i data-feather="briefcase"></i> Coopératives
-      </a>
-      <a class="nav-item" data-page="exercices" onclick="naviguer('exercices')">
-        <i data-feather="bar-chart-2"></i> Exercices
-      </a>
-
-      <div class="nav-separator">Outils</div>
-
-      <a class="nav-item" data-page="export" onclick="naviguer('export')">
-        <i data-feather="download"></i> Exporter
-      </a>
-      <a class="nav-item" id="btnLogin" onclick="window.location.href='/login'">
-        <i data-feather="log-in"></i> Connexion
-      </a>
-    </nav>
-
-    <div class="sidebar-status" id="statusBar">
-      <div class="status-dot" id="statusDot"></div>
-      <span id="statusText">Vérification...</span>
+    <div class="topbar-actions" id="topbarActions">
+      <!-- Connexion / Import / Deconnexion injectes par ui-state.js -->
     </div>
+  </header>
 
-  </aside>
-<!-- Mobile Header Toggle -->
-<div class="mobile-header" style="display:none">
-  <button class="menu-toggle" id="menuToggle" aria-label="Ouvrir le menu">
-    <i data-feather="menu"></i>
-  </button>
-  <div class="brand-title">Atlas Numérique</div>
-  <div style="width:24px"></div> <!-- spacer pour centrer le titre -->
-</div>
-<!-- Sidebar Overlay (mobile) -->
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
-  <!-- ═══════════════════════════════════
-       MAIN
-  ═══════════════════════════════════ -->
-  <main class="main">
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <!-- Nav generee par components/sidebar.js -->
+    </aside>
 
-    <!-- DASHBOARD -->
-    <section class="page active" id="page-dashboard">
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Tableau de bord</h1>
-          <p class="page-sub">Vue d'ensemble des données importées</p>
-        </div>
-        <button class="btn-primary" id="btnImportDashboard" style="display:none" onclick="naviguer('import')">
-          <i data-feather="upload"></i> Importer CSV
-        </button>
-      </div>
+    <main class="main" id="app">
+      <!-- Contenu de la page courante, injecte par router.js -->
+    </main>
+  </div>
 
-      <div class="stats-grid" id="statsGrid">
-        <div class="stat-card green loading" id="sc-regions">
-          <div class="stat-icon"><i data-feather="map"></i></div>
-          <div class="stat-value" id="stat-regions">—</div>
-          <div class="stat-label">Régions</div>
-        </div>
-        <div class="stat-card loading" id="sc-departements">
-          <div class="stat-icon"><i data-feather="flag"></i></div>
-          <div class="stat-value" id="stat-departements">—</div>
-          <div class="stat-label">Départements</div>
-        </div>
-        <div class="stat-card loading" id="sc-arrondissements">
-          <div class="stat-icon"><i data-feather="compass"></i></div>
-          <div class="stat-value" id="stat-arrondissements">—</div>
-          <div class="stat-label">Arrondissements</div>
-        </div>
-        <div class="stat-card yellow loading" id="sc-communes">
-          <div class="stat-icon"><i data-feather="home"></i></div>
-          <div class="stat-value" id="stat-communes">—</div>
-          <div class="stat-label">Communes</div>
-        </div>
-        <div class="stat-card loading" id="sc-villages">
-          <div class="stat-icon"><i data-feather="map-pin"></i></div>
-          <div class="stat-value" id="stat-villages">—</div>
-          <div class="stat-label">Villages & Quartiers</div>
-        </div>
-        <div class="stat-card red loading" id="sc-lieux">
-          <div class="stat-icon"><i data-feather="layers"></i></div>
-          <div class="stat-value" id="stat-lieux">—</div>
-          <div class="stat-label">Lieux</div>
-        </div>
-        <div class="stat-card loading" id="sc-chefferies">
-          <div class="stat-icon"><i data-feather="shield"></i></div>
-          <div class="stat-value" id="stat-chefferies">—</div>
-          <div class="stat-label">Chefferies</div>
-        </div>
-        <div class="stat-card loading" id="sc-marches">
-          <div class="stat-icon"><i data-feather="shopping-bag"></i></div>
-          <div class="stat-value" id="stat-marches">—</div>
-          <div class="stat-label">Marchés</div>
-        </div>
-        <div class="stat-card loading" id="sc-ethnies">
-          <div class="stat-icon"><i data-feather="users"></i></div>
-          <div class="stat-value" id="stat-ethnies">—</div>
-          <div class="stat-label">Ethnies</div>
-        </div>
-        <div class="stat-card loading" id="sc-cooperatives">
-          <div class="stat-icon"><i data-feather="briefcase"></i></div>
-          <div class="stat-value" id="stat-cooperatives">—</div>
-          <div class="stat-label">Coopératives</div>
-        </div>
-        <div class="stat-card loading" id="sc-exercices">
-          <div class="stat-icon"><i data-feather="bar-chart-2"></i></div>
-          <div class="stat-value" id="stat-exercices">—</div>
-          <div class="stat-label">Exercices</div>
-        </div>
-      </div>
-
-      <div class="section-block">
-        <div class="section-block-header">
-          <h2 class="section-title">Dernières communes</h2>
-          <button class="btn-ghost" onclick="naviguer('communes')">
-            Voir tout <i data-feather="arrow-right"></i>
-          </button>
-        </div>
-        <div id="dashboardCommunes" class="communes-preview"></div>
-      </div>
-    </section>
-
-    <!-- IMPORT -->
-    <section class="page" id="page-import">
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Importer un fichier CSV</h1>
-          <p class="page-sub">Fichier exporté depuis KoboCollect</p>
-        </div>
-      </div>
-
-      <div class="import-container">
-        <div class="drop-zone" id="dropZone"
-             ondragover="event.preventDefault(); this.classList.add('drag-over')"
-             ondragleave="this.classList.remove('drag-over')"
-             ondrop="handleDrop(event)">
-          <div class="drop-icon"><i data-feather="upload-cloud"></i></div>
-          <div class="drop-title">Glisser le fichier CSV ici</div>
-          <div class="drop-sub">ou</div>
-          <label class="btn-primary" for="csvInput">
-            <i data-feather="folder"></i> Parcourir
-          </label>
-          <input type="file" id="csvInput" accept=".csv"
-                 style="display:none" onchange="handleFileSelect(event)" />
-          <div class="drop-hint">
-            Séparateur ; · Encodage UTF-8 · Format KoboCollect
-          </div>
-        </div>
-
-        <div class="file-selected" id="fileSelected" style="display:none">
-          <div class="file-info">
-            <div class="file-icon-wrap"><i data-feather="file-text"></i></div>
-            <div>
-              <div class="file-name" id="fileName"></div>
-              <div class="file-size" id="fileSize"></div>
-            </div>
-          </div>
-          <div class="file-actions">
-            <button class="btn-danger-ghost" onclick="annulerFichier()">
-              <i data-feather="x"></i> Annuler
-            </button>
-            <button class="btn-primary" onclick="lancerImport()">
-              <i data-feather="upload"></i> Lancer l'import
-            </button>
-          </div>
-        </div>
-
-        <div class="import-progress" id="importProgress" style="display:none">
-          <div class="progress-spinner"></div>
-          <div class="progress-text">Import en cours, veuillez patienter...</div>
-        </div>
-
-        <div class="import-rapport" id="importRapport" style="display:none"></div>
-      </div>
-
-      <div class="section-block" style="margin-top:2rem">
-        <h2 class="section-title">Conventions du fichier</h2>
-        <div class="conventions-grid">
-          <div class="convention-item">
-            <div class="convention-symbol">;</div>
-            <div class="convention-desc">Séparateur colonnes</div>
-          </div>
-          <div class="convention-item">
-            <div class="convention-symbol">|</div>
-            <div class="convention-desc">Séparateur entités</div>
-          </div>
-          <div class="convention-item">
-            <div class="convention-symbol">::</div>
-            <div class="convention-desc">Séparateur attributs</div>
-          </div>
-          <div class="convention-item">
-            <div class="convention-symbol">,</div>
-            <div class="convention-desc">Valeurs multiples</div>
-          </div>
-          <div class="convention-item">
-            <div class="convention-symbol">V::</div>
-            <div class="convention-desc">Préfixe Village</div>
-          </div>
-          <div class="convention-item">
-            <div class="convention-symbol">Q::</div>
-            <div class="convention-desc">Préfixe Quartier</div>
-          </div>
-          <div class="convention-item">
-            <div class="convention-symbol">RAS</div>
-            <div class="convention-desc">Valeur manquante</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- REGIONS -->
-    <section class="page" id="page-regions">
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Régions</h1>
-          <p class="page-sub">Hiérarchie administrative</p>
-        </div>
-      </div>
-      <div id="regionsContent" class="regions-grid"></div>
-    </section>
-
-    <!-- COMMUNES -->
-    <section class="page" id="page-communes">
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Communes</h1>
-          <p class="page-sub">Toutes les communes enregistrées</p>
-        </div>
-      </div>
-      <div class="filters-bar">
-        <div class="filter-wrap">
-          <i data-feather="search"></i>
-          <input class="filter-input" type="text" id="filtreRegion"
-                 placeholder="Filtrer par région..." oninput="filtrerCommunes()" />
-        </div>
-        <div class="filter-wrap">
-          <i data-feather="filter"></i>
-          <input class="filter-input" type="text" id="filtreDept"
-                 placeholder="Filtrer par département..." oninput="filtrerCommunes()" />
-        </div>
-        <button class="btn-ghost" onclick="reinitialiserFiltres()">
-          <i data-feather="refresh-cw"></i> Réinitialiser
-        </button>
-      </div>
-      <div id="communesContent"></div>
-    </section>
-
-    <!-- VILLAGES -->
-    <section class="page" id="page-villages">
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Villages & Quartiers</h1>
-          <p class="page-sub">Toutes les localités enregistrées</p>
-        </div>
-      </div>
-      <div class="filters-bar">
-        <div class="filter-wrap">
-          <i data-feather="filter"></i>
-          <select class="filter-input" id="filtreTypeVillage" onchange="chargerVillages()">
-            <option value="">Tous les types</option>
-            <option value="village">Villages</option>
-            <option value="quartier">Quartiers</option>
-          </select>
-        </div>
-      </div>
-      <div id="villagesContent"></div>
-    </section>
-
-    <!-- LIEUX -->
-    <section class="page" id="page-lieux">
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Lieux</h1>
-          <p class="page-sub">Écoles, urgences, sites touristiques et plus</p>
-        </div>
-      </div>
-      <div class="filters-bar">
-        <div class="filter-wrap">
-          <i data-feather="filter"></i>
-          <select class="filter-input" id="filtreTypeLieu" onchange="chargerLieux()">
-            <option value="">Tous les types</option>
-            <option value="scolaire">Scolaire</option>
-            <option value="urgence">Urgences</option>
-            <option value="touristique">Touristique</option>
-            <option value="religieux">Religieux</option>
-            <option value="eau">Points d'eau</option>
-            <option value="sportif">Sportif</option>
-            <option value="reference">Référence</option>
-          </select>
-        </div>
-      </div>
-      <div id="lieuxContent"></div>
-    </section>
-
-    <!-- CHEFFERIES -->
-    <section class="page" id="page-chefferies">
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Chefferies</h1>
-          <p class="page-sub">Chefferies et coordonnées GPS</p>
-        </div>
-      </div>
-      <div id="chefferiesContent"></div>
-    </section>
-
-    <!-- MARCHES -->
-    <section class="page" id="page-marches">
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Marchés</h1>
-          <p class="page-sub">Marchés et jours de marché</p>
-        </div>
-      </div>
-      <div id="marchesContent"></div>
-    </section>
-
-    <!-- ETHNIES -->
-    <section class="page" id="page-ethnies">
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Ethnies</h1>
-          <p class="page-sub">Groupes ethniques répertoriés</p>
-        </div>
-      </div>
-      <div id="ethniesContent"></div>
-    </section>
-
-    <!-- COOPERATIVES -->
-    <section class="page" id="page-cooperatives">
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Coopératives & GIC</h1>
-          <p class="page-sub">Organisations économiques</p>
-        </div>
-      </div>
-      <div id="cooperativesContent"></div>
-    </section>
-
-    <!-- EXERCICES -->
-    <section class="page" id="page-exercices">
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Exercices annuels</h1>
-          <p class="page-sub">Données annuelles par commune</p>
-        </div>
-      </div>
-      <div id="exercicesContent"></div>
-    </section>
-
-    <!-- EXPORT -->
-    <section class="page" id="page-export">
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Exporter</h1>
-          <p class="page-sub">Télécharger les données</p>
-        </div>
-      </div>
-      <div class="filters-bar" style="margin-bottom:1.5rem">
-        <div class="filter-wrap">
-          <i data-feather="search"></i>
-          <input class="filter-input" type="text" id="exportRegion"
-                 placeholder="Filtrer par région (optionnel)" />
-        </div>
-      </div>
-      <div class="export-container">
-        <div class="export-card" onclick="exporter('csv')">
-          <div class="export-icon green"><i data-feather="file-text"></i></div>
-          <div class="export-title">Export CSV</div>
-          <div class="export-desc">Séparateur point-virgule · UTF-8</div>
-          <button class="btn-primary">
-            <i data-feather="download"></i> Télécharger CSV
-          </button>
-        </div>
-        <div class="export-card" onclick="exporter('excel')">
-          <div class="export-icon yellow"><i data-feather="grid"></i></div>
-          <div class="export-title">Export Excel</div>
-          <div class="export-desc">Format .xlsx · Microsoft Excel</div>
-          <button class="btn-primary">
-            <i data-feather="download"></i> Télécharger Excel
-          </button>
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- MODAL -->
-  <div class="modal-overlay" id="modalOverlay" onclick="fermerModal()">
+  <div class="modal-overlay" id="modalOverlay">
     <div class="modal" onclick="event.stopPropagation()">
-      <button class="modal-close" onclick="fermerModal()">
-        <i data-feather="x"></i>
-      </button>
+      <button class="modal-close" id="modalClose"><i data-feather="x"></i></button>
       <div class="modal-content" id="modalContent"></div>
     </div>
   </div>
 
-  <script src="/static/app.js"></script>
-  <script>feather.replace()</script>
+  <script type="module" src="/static/js/core/api.js"></script>
+<script type="module" src="/static/js/core/ui-state.js"></script>
+<script type="module">
+  import { updateUIForAuthState } from "/static/js/core/ui-state.js";
+  window.updateUIForAuthState = updateUIForAuthState; // expose au script classique auth.js
+</script>
+<script type="module" src="/static/js/core/router.js"></script>
+<script src="/static/js/core/auth.js"></script>
+<script type="module" src="/static/js/main.js"></script>
 </body>
 </html>
