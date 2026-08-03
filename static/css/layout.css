@@ -5,6 +5,13 @@
 /* ══════════════════════════════════════════════════════════════
    TOPBAR
 ══════════════════════════════════════════════════════════════ */
+.menu-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 0.5rem;
+}
 .topbar {
     position: fixed;
     top: 0; left: 0; right: 0;
@@ -49,6 +56,7 @@
   }
   .topbar-link:hover { background: var(--bg-3); color: var(--text); }
   .topbar-link svg { width: 15px; height: 15px; }
+
   /* ══════════════════════════════════════════════════════════════
      SIDEBAR
   ══════════════════════════════════════════════════════════════ */
@@ -197,3 +205,5 @@
   }
   
   .page-sub { font-size: 0.8rem; color: var(--text-3); }
+
+  

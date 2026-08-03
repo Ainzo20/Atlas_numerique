@@ -19,6 +19,7 @@
 <body>
 
   <header class="topbar">
+
     <div class="topbar-brand">
       <div class="brand-flag">
         <span class="flag-green"></span><span class="flag-red"></span><span class="flag-yellow"></span>
@@ -28,13 +29,16 @@
     <div class="topbar-actions" id="topbarActions">
       <!-- Connexion / Import / Deconnexion injectes par ui-state.js -->
     </div>
-  </header>
+    <button class="menu-toggle" id="menuToggle"><i data-feather="menu"></i></button>
+</header>
 
   <div class="layout">
+    
     <aside class="sidebar" id="sidebar">
+   
       <!-- Nav generee par components/sidebar.js -->
     </aside>
-
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <main class="main" id="app">
       <!-- Contenu de la page courante, injecte par router.js -->
     </main>

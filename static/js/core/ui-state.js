@@ -3,6 +3,7 @@
  * selon l'etat de connexion (admin / visiteur).
  * Injecte dynamiquement le contenu de la topbar.
  */
+import { naviguerVers } from "./router.js";
 
 function updateUIForAuthState(session) {
     const estAdmin = !!session?.est_admin;
@@ -17,11 +18,10 @@ function updateUIForAuthState(session) {
       : `<a class="topbar-link" id="btnLogin" href="/login"><i data-feather="log-in"></i> Connexion</a>`;
   
     if (estAdmin) {
-      document.getElementById("btnImport").addEventListener("click", (e) => {
-        e.preventDefault();
-        import("../router.js").then(() => window.location.hash); // placeholder, cf. note plus bas
-        window.dispatchEvent(new CustomEvent("naviguer-import"));
-      });
+        document.getElementById("btnImport").addEventListener("click", (e) => {
+            e.preventDefault();
+            naviguerVers("/import");
+          });
       document.getElementById("btnLogout").addEventListener("click", async (e) => {
         e.preventDefault();
         await AtlasAuth.logout();
